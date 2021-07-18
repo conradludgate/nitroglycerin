@@ -1,0 +1,17 @@
+[package]
+name = "nitroglycerin_derive"
+version = "0.1.0"
+edition = "2018"
+authors = ["Conrad Ludgate <conradludgate@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/conradludgate/nitroglycerin"
+readme = "../README.md"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "1.0"
+syn = "1.0"
+proc-macro2 = "1.0"
+derive_builder = "0.10.2"

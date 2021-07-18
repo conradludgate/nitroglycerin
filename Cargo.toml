@@ -1,0 +1,8 @@
+[workspace]
+
+members = [
+    "nitroglycerin",
+    "nitroglycerin_derive",
+
+    "example",
+]

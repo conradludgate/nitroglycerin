@@ -1,0 +1,15 @@
+[package]
+name = "nitroglycerin"
+version = "0.1.0"
+edition = "2018"
+authors = ["Conrad Ludgate <conradludgate@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/conradludgate/nitroglycerin"
+readme = "../README.md"
+
+[dependencies]
+nitroglycerin_derive = { path = "../nitroglycerin_derive", version = "0.1" }
+
+dynomite = { git = "https://github.com/softprops/dynomite", rev = "16c61ae635f0ea182709f64f1f47afa45e3561a8" }
+rusoto_core = "0.46.0"
+thiserror = "1.0"
