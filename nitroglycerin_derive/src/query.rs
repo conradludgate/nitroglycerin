@@ -1,22 +1,18 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
-use syn::{Expr, Ident, Type, Visibility};
+use syn::{Expr, Generics, Ident, Type, Visibility};
+
+use crate::table::Column;
 
 pub struct QueryBuilder {
     pub vis: Visibility,
     pub table_name: Expr,
     pub index_name: Option<Expr>,
     pub output: Ident,
+    pub generics: Generics,
 
     pub partition_key: Column,
     pub sort_key: Option<Column>,
-}
-
-#[derive(Clone)]
-pub struct Column {
-    pub ident: Ident,
-    pub name: String,
-    pub ty: Type,
 }
 
 impl ToTokens for QueryBuilder {
@@ -28,6 +24,7 @@ impl ToTokens for QueryBuilder {
             output,
             partition_key,
             sort_key,
+            generics,
         } = self;
 
         let builder = format_ident!("{}QueryBuilder", output);

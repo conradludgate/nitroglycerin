@@ -8,114 +8,57 @@ use crate::{
     attr::{FieldAttr, TableAttr},
     convert::ConvertBuilder,
     get::GetBuilder,
-    query::{Column, QueryBuilder},
+    query::QueryBuilder,
 };
 
 pub struct Table {
-    vis: Visibility,
-    name: syn::Ident,
-    // fields: Vec<NamedField>,
-    // args: Vec<syn::Ident>,
-    attrs: TableAttr,
-    columns: Vec<Column>,
-    partition_key: Column,
-    sort_key: Option<Column>,
-    // generic: syn::Type,
+    convert: ConvertBuilder,
+    get: GetBuilder,
+    query: QueryBuilder,
 }
 
 impl Table {
     pub fn new(vis: Visibility, name: syn::Ident, generics: syn::Generics, attrs: Vec<syn::Attribute>, fields: syn::FieldsNamed) -> syn::Result<Self> {
-        // let args = generics.type_params().cloned().map(|tp| tp.ident).collect();
         let fields: Vec<_> = fields.named.into_iter().map(NamedField::try_from).collect::<syn::Result<_>>()?;
         let attrs = TableAttr::parse_attrs(attrs)?;
-        // let generic = parse_or(&attrs.parse_type);
 
-        let columns: Vec<_> = fields
+        let columns: Vec<_> = fields.clone().into_iter().map(Column::from).collect();
+
+        let partition_key: Column = fields
             .iter()
-            .map(|f| Column {
-                name: f.attrs.rename.as_ref().map(|l| l.value()).unwrap_or_else(|| f.name.to_string()),
-                ident: f.name.clone(),
-                ty: f.ty.clone(),
-            })
-            .collect();
+            .find_map(|f| f.attrs.partition_key.map(|_| f.clone().into()))
+            .ok_or_else(|| syn::Error::new(Span::call_site(), "table needs a partition key"))?;
 
-        let partition_key = fields
-            .iter()
-            .find_map(|f| {
-                f.attrs.partition_key?;
-                Some(Column {
-                    name: f.attrs.rename.as_ref().map(|l| l.value()).unwrap_or_else(|| f.name.to_string()),
-                    ident: f.name.clone(),
-                    ty: f.ty.clone(),
-                })
-            })
-            .ok_or(syn::Error::new(Span::call_site(), "table needs a partition key"))?;
+        let sort_key = fields.iter().find_map(|f| f.attrs.sort_key.map(|_| f.clone().into()));
 
-        let sort_key = fields.iter().find_map(|f| {
-            f.attrs.sort_key?;
-            Some(Column {
-                name: f.attrs.rename.as_ref().map(|l| l.value()).unwrap_or_else(|| f.name.to_string()),
-                ident: f.name.clone(),
-                ty: f.ty.clone(),
-            })
-        });
+        let convert = ConvertBuilder::new(name.to_owned(), generics.clone(), columns.clone());
 
-        Ok(Table {
-            vis,
-            attrs,
-            name,
-            columns,
-            partition_key,
-            sort_key,
-            // args,
-            // fields,
-            // generic,
-        })
+        let get = GetBuilder::new(vis.to_owned(), attrs.table_name.clone(), name.to_owned(), generics.clone(), partition_key.clone(), sort_key.clone());
+
+        let query = QueryBuilder {
+            vis: vis.to_owned(),
+            table_name: attrs.table_name,
+            index_name: None,
+            output: name.to_owned(),
+            partition_key: partition_key,
+            sort_key: sort_key,
+            generics: generics,
+        };
+
+        Ok(Table { convert, get, query })
     }
 }
 
 impl ToTokens for Table {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let Table {
-            vis,
-            name,
-            // fields,
-            // args,
-            attrs,
-            columns,
-            partition_key,
-            sort_key,
-            // generic,
-        } = self;
-
-        ConvertBuilder {
-            ident: name.to_owned(),
-            columns: columns.clone(),
-        }
-        .to_tokens(tokens);
-
-        GetBuilder {
-            vis: vis.to_owned(),
-            table_name: attrs.table_name.clone(),
-            output: name.to_owned(),
-            partition_key: partition_key.clone(),
-            sort_key: sort_key.clone(),
-        }
-        .to_tokens(tokens);
-
-        QueryBuilder {
-            vis: vis.to_owned(),
-            table_name: attrs.table_name.clone(),
-            index_name: None,
-            output: name.to_owned(),
-            partition_key: partition_key.clone(),
-            sort_key: sort_key.clone(),
-        }
-        .to_tokens(tokens);
+        let Self { convert, get, query } = self;
+        convert.to_tokens(tokens);
+        get.to_tokens(tokens);
+        query.to_tokens(tokens);
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct NamedField {
     attrs: FieldAttr,
     name: syn::Ident,
@@ -127,6 +70,23 @@ impl TryFrom<syn::Field> for NamedField {
     fn try_from(field: syn::Field) -> syn::Result<Self> {
         let syn::Field { ident, attrs, ty, .. } = field;
         let attrs = FieldAttr::parse_attrs(attrs)?;
-        Ok(NamedField { attrs, name: ident.unwrap(), ty })
+        Ok(Self { attrs, name: ident.unwrap(), ty })
+    }
+}
+
+#[derive(Clone)]
+pub struct Column {
+    pub ident: syn::Ident,
+    pub name: String,
+    pub ty: syn::Type,
+}
+
+impl From<NamedField> for Column {
+    fn from(f: NamedField) -> Self {
+        Self {
+            name: f.attrs.rename.as_ref().map(|l| l.value()).unwrap_or_else(|| f.name.to_string()),
+            ident: f.name,
+            ty: f.ty,
+        }
     }
 }

@@ -1,9 +1,7 @@
 mod client;
 pub mod convert;
 pub mod get;
-mod get_example;
 pub mod query;
-mod query_example;
 
 use std::{collections::HashMap, convert::TryFrom, error::Error};
 

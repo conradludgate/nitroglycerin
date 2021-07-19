@@ -67,7 +67,7 @@ impl TableAttrBuilder {
     }
 }
 
-#[derive(Builder, Debug)]
+#[derive(Builder, Debug, Clone)]
 #[builder(derive(Debug))]
 #[builder(setter(strip_option))]
 pub struct FieldAttr {
