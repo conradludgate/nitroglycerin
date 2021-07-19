@@ -1,28 +1,7 @@
 use proc_macro2::{Delimiter, Ident, Span, TokenStream, TokenTree};
-use syn::{parse2, Expr, LitStr, Token};
+use syn::{parse2, LitStr, Token};
 
 use crate::split_by::IterExt;
-
-#[derive(Builder)]
-pub struct TableAttr {
-    pub table_name: Expr,
-}
-
-impl TableAttr {
-    pub fn parse_attrs(attrs: Vec<syn::Attribute>) -> syn::Result<Self> {
-        TableAttrBuilder::default().parse_attrs(attrs)?.build().map_err(|err| syn::Error::new(Span::call_site(), err))
-    }
-}
-
-impl AttrBuilder for TableAttrBuilder {
-    fn parse(&mut self, ident: Ident, tokens: TokenStream) -> syn::Result<()> {
-        match ident.to_string().as_ref() {
-            "table_name" => self.table_name(equal(tokens)?),
-            _ => return Err(syn::Error::new_spanned(ident, "unknown parameter")),
-        };
-        Ok(())
-    }
-}
 
 #[derive(Builder, Clone)]
 #[builder(setter(strip_option))]
@@ -35,9 +14,6 @@ pub struct FieldAttr {
 
     #[builder(default)]
     pub sort_key: Option<()>,
-
-    // #[builder(default)]
-    // pub index: Option<Index>,
 }
 
 impl FieldAttr {
@@ -52,7 +28,6 @@ impl AttrBuilder for FieldAttrBuilder {
             "rename" => self.rename(equal(tokens)?),
             "partition_key" => self.partition_key(empty(tokens)?),
             "sort_key" => self.sort_key(empty(tokens)?),
-            // "index" => self.index(parse2(tokens)?),
             _ => return Err(syn::Error::new_spanned(ident, "unknown parameter")),
         };
         Ok(())
@@ -88,14 +63,6 @@ fn empty(tokens: TokenStream) -> syn::Result<()> {
     parse2::<Empty>(tokens)?;
     Ok(())
 }
-
-// #[derive(Clone)]
-// pub struct Index {}
-// impl syn::parse::Parse for Index {
-//     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-//         Ok(Self {})
-//     }
-// }
 
 trait AttrBuilder: Sized {
     fn parse_attrs(mut self, attrs: Vec<syn::Attribute>) -> syn::Result<Self> {

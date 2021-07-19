@@ -4,15 +4,26 @@ use rusoto_dynamodb::AttributeValue;
 
 use crate::{AttributeError, Attributes};
 
+/// Remove and parse a value from an Attribute `HashMap`
+///
+/// # Errors
+/// Will return an error if the key is missing from map or of the value could not be parsed
 pub fn extract<T: FromAttributeValue>(map: &mut Attributes, key: &str) -> Result<T, AttributeError> {
     T::try_from_av(map.remove(key).ok_or_else(|| AttributeError::MissingField(key.to_owned()))?)
 }
 
+/// Trait for types that can be created from `AttribueValues`
 pub trait FromAttributeValue: Sized {
+    /// try convert the attribute value into Self
+    ///
+    /// # Errors
+    /// Will return an error value could not be parsed into `Self`
     fn try_from_av(av: AttributeValue) -> Result<Self, AttributeError>;
 }
 
+/// Trait for types that can be converted into `AttribueValues`
 pub trait IntoAttributeValue: Sized {
+    /// convert self into an attribute value
     fn into_av(self) -> AttributeValue;
 }
 
@@ -90,10 +101,13 @@ where
     T: IntoAttributeValue,
 {
     fn into_av(self) -> AttributeValue {
-        self.map(T::into_av).unwrap_or_else(|| AttributeValue {
-            null: Some(true),
-            ..AttributeValue::default()
-        })
+        self.map_or_else(
+            || AttributeValue {
+                null: Some(true),
+                ..AttributeValue::default()
+            },
+            T::into_av,
+        )
     }
 }
 

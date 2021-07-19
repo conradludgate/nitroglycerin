@@ -1,20 +1,35 @@
-use proc_macro2::TokenStream;
+use std::convert::TryFrom;
+
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
-use syn::{parse_quote, Expr, Generics, Ident, Type, Visibility};
+use syn::{parse_quote, Generics, Ident, Type, Visibility};
 
-use crate::{table::Column, D};
+use crate::{Column, NamedField, D};
 
-pub struct QueryBuilder {
+pub fn derive(vis: Visibility, name: syn::Ident, generics: syn::Generics, _attrs: Vec<syn::Attribute>, fields: syn::FieldsNamed) -> syn::Result<TokenStream> {
+    let fields: Vec<_> = fields.named.into_iter().map(NamedField::try_from).collect::<syn::Result<_>>()?;
+
+    let partition_key: Column = fields
+        .iter()
+        .find_map(|f| f.attrs.partition_key.map(|_| f.clone().into()))
+        .ok_or_else(|| syn::Error::new(Span::call_site(), "table needs a partition key"))?;
+
+    let sort_key = fields.iter().find_map(|f| f.attrs.sort_key.map(|_| f.clone().into()));
+
+    Ok(QueryBuilder::new(vis, name, generics, partition_key, sort_key).to_token_stream())
+}
+
+struct QueryBuilder {
     trait_builder: TraitBuilder,
     query_builder1: QueryBuilder1,
     query_builder2: QueryBuilder2,
 }
 
 impl QueryBuilder {
-    pub fn new(vis: Visibility, table_name: Expr, index_name: Option<Expr>, output: Ident, generics: Generics, partition_key: Column, sort_key: Option<Column>) -> Self {
+    fn new(vis: Visibility, output: Ident, generics: Generics, partition_key: Column, sort_key: Option<Column>) -> Self {
         Self {
             trait_builder: TraitBuilder::new(output.clone(), generics.clone()),
-            query_builder1: QueryBuilder1::new(vis.clone(), table_name, index_name, output.clone(), generics.clone(), partition_key),
+            query_builder1: QueryBuilder1::new(vis.clone(), output.clone(), generics.clone(), partition_key),
             query_builder2: QueryBuilder2::new(vis, output, generics, sort_key),
         }
     }
@@ -44,10 +59,7 @@ impl TraitBuilder {
         let generics2 = generics.clone();
 
         generics.make_where_clause().predicates.push(parse_quote! {
-            Self: ::std::convert::TryFrom<
-                ::std::collections::HashMap<String, ::nitroglycerin::dynamodb::AttributeValue>,
-                Error = ::nitroglycerin::AttributeError,
-            >
+            Self:  ::nitroglycerin::TableIndex
         });
         generics.params.push(parse_quote! { #D });
 
@@ -64,7 +76,7 @@ impl ToTokens for TraitBuilder {
         let (_, ty_generics2, _) = generics2.split_for_impl();
 
         tokens.extend(quote! {
-            impl #impl_generics ::nitroglycerin::Query<#D> for #output #ty_generics2 #where_clause {
+            impl #impl_generics ::nitroglycerin::query::Query<#D> for #output #ty_generics2 #where_clause {
                 type Builder = #builder #ty_generics;
 
                 fn query(client: #D) -> Self::Builder {
@@ -77,16 +89,17 @@ impl ToTokens for TraitBuilder {
 
 struct QueryBuilder1 {
     vis: Visibility,
-    table_name: Expr,
-    index_name: Option<Expr>,
     output: Ident,
     generics: Generics,
+    generics2: Generics,
     phantom_data: Type,
     partition_key: Column,
 }
 
 impl QueryBuilder1 {
-    fn new(vis: Visibility, table_name: Expr, index_name: Option<Expr>, output: Ident, mut generics: Generics, partition_key: Column) -> Self {
+    fn new(vis: Visibility, output: Ident, mut generics: Generics, partition_key: Column) -> Self {
+        let generics2 = generics.clone();
+
         let tys = generics.type_params().map(|tp| &tp.ident);
         let phantom_data = parse_quote! {
             (
@@ -100,10 +113,9 @@ impl QueryBuilder1 {
 
         Self {
             vis,
-            table_name,
-            index_name,
             output,
             generics,
+            generics2,
             phantom_data,
             partition_key,
         }
@@ -114,10 +126,9 @@ impl ToTokens for QueryBuilder1 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self {
             vis,
-            table_name,
-            index_name,
             output,
             generics,
+            generics2,
             phantom_data,
             partition_key,
         } = self;
@@ -131,16 +142,7 @@ impl ToTokens for QueryBuilder1 {
         } = partition_key;
 
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-        let index = index_name.as_ref().map(|index_name| {
-            quote! {
-                let input = {
-                    let mut input = input;
-                    input.index_name = Some(#index_name.into());
-                    input
-                };
-            }
-        });
+        let (_, ty_generics2, _) = generics2.split_for_impl();
 
         tokens.extend(quote! {
             #vis struct #builder #impl_generics {
@@ -152,12 +154,12 @@ impl ToTokens for QueryBuilder1 {
                 #vis fn #p_ident(self, #p_ident: #p_ty) -> #builder_p #ty_generics
                 where
                     #p_ty: ::nitroglycerin::convert::IntoAttributeValue,
+                    #output #ty_generics2: ::nitroglycerin::TableIndex,
                 {
                     let partition_key = #p_ident;
                     let Self { client, _phantom } = self;
 
-                    let input = ::nitroglycerin::query::new_input(#table_name.into(), #p_name, partition_key);
-                    #index
+                    let input = ::nitroglycerin::query::new_input::<#output #ty_generics2, _>(#p_name, partition_key);
 
                     #builder_p::new(client, input)
                 }
@@ -234,31 +236,29 @@ impl ToTokens for QueryBuilder2 {
                         Self { client, input, _phantom: ::std::marker::PhantomData }
                     }
 
-                    #vis fn #s_ident(self) -> ::nitroglycerin::query::QueryBuilderSort<#D, #s_ty, #output #ty_generics2> {
+                    #vis fn #s_ident(self) -> ::nitroglycerin::query::BuilderSort<#D, #s_ty, #output #ty_generics2> {
                         let Self { client, input, _phantom } = self;
-                        ::nitroglycerin::query::QueryBuilderSort::new(client, input, #s_name)
+                        ::nitroglycerin::query::BuilderSort::new(client, input, #s_name)
                     }
 
-                    #vis fn consistent_read(self) -> ::nitroglycerin::query::QueryExpr<#D, #output #ty_generics2> {
+                    #vis fn consistent_read(self) -> ::nitroglycerin::query::Expr<#D, #output #ty_generics2> {
                         let Self { client, input, _phantom } = self;
-                        ::nitroglycerin::query::QueryExpr::new(client, input).consistent_read()
+                        ::nitroglycerin::query::Expr::new(client, input).consistent_read()
                     }
 
                     #vis async fn execute(self) -> ::std::result::Result<::std::vec::Vec<#output #ty_generics2>, ::nitroglycerin::DynamoError<::nitroglycerin::dynamodb::QueryError>>
                     where
-                        #D: ::nitroglycerin::dynamodb::DynamoDb,
-                        #output #ty_generics2: ::std::convert::TryFrom<
-                            ::std::collections::HashMap<String, ::nitroglycerin::dynamodb::AttributeValue>,
-                            Error = ::nitroglycerin::AttributeError,
-                        >,
+                        #D: ::nitroglycerin::dynamodb::DynamoDb + ::std::marker::Send,
+                        for<'d> &'d #D: ::nitroglycerin::dynamodb::DynamoDb + ::std::marker::Send,
+                        #output #ty_generics2: ::std::convert::TryFrom<::nitroglycerin::Attributes, Error = ::nitroglycerin::AttributeError> + ::std::marker::Send,
                     {
                         let Self { client, input, _phantom } = self;
-                        ::nitroglycerin::query::QueryExpr::new(client, input).execute().await
+                        ::nitroglycerin::query::Expr::new(client, input).execute().await
                     }
                 }
             }),
             None => tokens.extend(quote! {
-                #vis type #builder_p #impl_generics = ::nitroglycerin::query::QueryExpr<#D, #output #ty_generics2>;
+                #vis type #builder_p #impl_generics = ::nitroglycerin::query::Expr<#D, #output #ty_generics2>;
             }),
         }
     }

@@ -1,20 +1,35 @@
-use proc_macro2::TokenStream;
+use std::convert::TryFrom;
+
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
-use syn::{parse_quote, Expr, Generics, Ident, Type, Visibility};
+use syn::{parse_quote, Generics, Ident, Type, Visibility};
 
-use crate::{table::Column, D};
+use crate::{Column, NamedField, D};
 
-pub struct GetBuilder {
+pub fn derive(vis: Visibility, name: syn::Ident, generics: syn::Generics, _attrs: Vec<syn::Attribute>, fields: syn::FieldsNamed) -> syn::Result<TokenStream> {
+    let fields: Vec<_> = fields.named.into_iter().map(NamedField::try_from).collect::<syn::Result<_>>()?;
+
+    let partition_key: Column = fields
+        .iter()
+        .find_map(|f| f.attrs.partition_key.map(|_| f.clone().into()))
+        .ok_or_else(|| syn::Error::new(Span::call_site(), "table needs a partition key"))?;
+
+    let sort_key = fields.iter().find_map(|f| f.attrs.sort_key.map(|_| f.clone().into()));
+
+    Ok(GetBuilder::new(vis, name, generics, partition_key, sort_key).to_token_stream())
+}
+
+struct GetBuilder {
     trait_builder: TraitBuilder,
     get_builder1: GetBuilder1,
     get_builder2: GetBuilder2,
 }
 
 impl GetBuilder {
-    pub fn new(vis: Visibility, table_name: Expr, output: Ident, generics: Generics, partition_key: Column, sort_key: Option<Column>) -> Self {
+    pub fn new(vis: Visibility, output: Ident, generics: Generics, partition_key: Column, sort_key: Option<Column>) -> Self {
         Self {
             trait_builder: TraitBuilder::new(output.clone(), generics.clone()),
-            get_builder1: GetBuilder1::new(vis.clone(), table_name, output.clone(), generics.clone(), partition_key),
+            get_builder1: GetBuilder1::new(vis.clone(), output.clone(), generics.clone(), partition_key),
             get_builder2: GetBuilder2::new(vis, output, generics, sort_key),
         }
     }
@@ -44,10 +59,7 @@ impl TraitBuilder {
         let generics2 = generics.clone();
 
         generics.make_where_clause().predicates.push(parse_quote! {
-            Self: ::std::convert::TryFrom<
-                ::std::collections::HashMap<String, ::nitroglycerin::dynamodb::AttributeValue>,
-                Error = ::nitroglycerin::AttributeError,
-            >
+            Self: ::nitroglycerin::Table
         });
         generics.params.push(parse_quote! { #D });
 
@@ -64,7 +76,7 @@ impl ToTokens for TraitBuilder {
         let (_, ty_generics2, _) = generics2.split_for_impl();
 
         tokens.extend(quote! {
-            impl #impl_generics ::nitroglycerin::Get<#D> for #output #ty_generics2 #where_clause {
+            impl #impl_generics ::nitroglycerin::get::Get<#D> for #output #ty_generics2 #where_clause {
                 type Builder = #builder #ty_generics;
 
                 fn get(client: #D) -> Self::Builder {
@@ -77,15 +89,17 @@ impl ToTokens for TraitBuilder {
 
 struct GetBuilder1 {
     vis: Visibility,
-    table_name: Expr,
     output: Ident,
     generics: Generics,
+    generics2: Generics,
     phantom_data: Type,
     partition_key: Column,
 }
 
 impl GetBuilder1 {
-    fn new(vis: Visibility, table_name: Expr, output: Ident, mut generics: Generics, partition_key: Column) -> Self {
+    fn new(vis: Visibility, output: Ident, mut generics: Generics, partition_key: Column) -> Self {
+        let generics2 = generics.clone();
+
         let tys = generics.type_params().map(|tp| &tp.ident);
         let phantom_data = parse_quote! {
             (
@@ -94,14 +108,13 @@ impl GetBuilder1 {
                 )*
             )
         };
-
         generics.params.push(parse_quote! { #D });
 
         Self {
             vis,
-            table_name,
             output,
             generics,
+            generics2,
             phantom_data,
             partition_key,
         }
@@ -112,9 +125,9 @@ impl ToTokens for GetBuilder1 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self {
             vis,
-            table_name,
             output,
             generics,
+            generics2,
             phantom_data,
             partition_key,
         } = self;
@@ -128,6 +141,7 @@ impl ToTokens for GetBuilder1 {
         } = partition_key;
 
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+        let (_, ty_generics2, _) = generics2.split_for_impl();
 
         tokens.extend(quote! {
             #vis struct #builder #impl_generics {
@@ -139,11 +153,12 @@ impl ToTokens for GetBuilder1 {
                 #vis fn #p_ident(self, #p_ident: #p_ty) -> #builder_p #ty_generics
                 where
                     #p_ty: ::nitroglycerin::convert::IntoAttributeValue,
+                    #output #ty_generics2: ::nitroglycerin::Table,
                 {
                     let partition_key = #p_ident;
                     let Self { client, _phantom } = self;
 
-                    let input = ::nitroglycerin::get::new_input(#table_name.into(), #p_name, partition_key);
+                    let input = ::nitroglycerin::get::new_input::<#output #ty_generics2, _>(#p_name, partition_key);
 
                     #builder_p::new(client, input)
                 }
@@ -220,7 +235,7 @@ impl ToTokens for GetBuilder2 {
                         Self { client, input, _phantom: ::std::marker::PhantomData }
                     }
 
-                    #vis fn #s_ident(self, #s_ident: #s_ty) -> ::nitroglycerin::get::GetExpr<#D, #output #ty_generics2>
+                    #vis fn #s_ident(self, #s_ident: #s_ty) -> ::nitroglycerin::get::Expr<#D, #output #ty_generics2>
                     where
                         #s_ty: ::nitroglycerin::convert::IntoAttributeValue,
                     {
@@ -232,12 +247,12 @@ impl ToTokens for GetBuilder2 {
                             <#s_ty as ::nitroglycerin::convert::IntoAttributeValue>::into_av(sort_key),
                         );
 
-                        ::nitroglycerin::get::GetExpr::new(client, input)
+                        ::nitroglycerin::get::Expr::new(client, input)
                     }
                 }
             }),
             None => tokens.extend(quote! {
-                #vis type #builder_p #impl_generics = ::nitroglycerin::get::GetExpr<#D, #output #ty_generics2>;
+                #vis type #builder_p #impl_generics = ::nitroglycerin::get::Expr<#D, #output #ty_generics2>;
             }),
         }
     }

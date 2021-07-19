@@ -1,8 +1,7 @@
-use nitroglycerin::{dynamodb::DynamoDbClient, DynamoDb, Table};
+use nitroglycerin::{dynamodb::DynamoDbClient, Attributes, DynamoDb, Get, Query, Table};
 use rusoto_core::Region;
 
-#[derive(Debug, Table)]
-#[nitro(table_name = "Foo")]
+#[derive(Debug, Get, Query, Attributes)]
 pub struct FooTable<ID: Clone> {
     #[nitro(partition_key)]
     id: ID,
@@ -12,11 +11,11 @@ pub struct FooTable<ID: Clone> {
     time: u32,
 }
 
-// #[derive(Debug)]
-// pub struct FooTable<ID> {
-//     id: ID,
-//     time: u32,
-// }
+impl<ID: Clone> Table for FooTable<ID> {
+    fn table_name() -> String {
+        "Foo".to_string()
+    }
+}
 
 #[tokio::main]
 async fn main() {

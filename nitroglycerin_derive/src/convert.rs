@@ -1,15 +1,24 @@
+use std::convert::TryFrom;
+
+use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{parse_quote, Generics, Ident};
 
-use crate::table::Column;
+use crate::{Column, NamedField};
 
-pub struct ConvertBuilder {
+pub fn derive(_vis: syn::Visibility, name: syn::Ident, generics: syn::Generics, _attrs: Vec<syn::Attribute>, fields: syn::FieldsNamed) -> syn::Result<TokenStream> {
+    let fields: Vec<_> = fields.named.into_iter().map(NamedField::try_from).collect::<syn::Result<_>>()?;
+    let columns: Vec<_> = fields.into_iter().map(Column::from).collect();
+    Ok(ConvertBuilder::new(name, generics, columns).to_token_stream())
+}
+
+struct ConvertBuilder {
     from: FromBuilder,
     into: IntoBuilder,
 }
 
 impl ConvertBuilder {
-    pub fn new(ident: Ident, generics: Generics, columns: Vec<Column>) -> Self {
+    fn new(ident: Ident, generics: Generics, columns: Vec<Column>) -> Self {
         Self {
             from: FromBuilder::new(ident.clone(), generics.clone(), columns.clone()),
             into: IntoBuilder::new(ident, generics, columns),
