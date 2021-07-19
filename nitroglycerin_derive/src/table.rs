@@ -57,7 +57,7 @@ impl ToTokens for Table {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct NamedField {
     attrs: FieldAttr,
     name: syn::Ident,

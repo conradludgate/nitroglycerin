@@ -15,19 +15,16 @@ impl TableAttr {
 }
 
 impl AttrBuilder for TableAttrBuilder {
-    fn parse(&mut self, ident: Ident, tokens: impl Iterator<Item = TokenTree>) -> syn::Result<()> {
+    fn parse(&mut self, ident: Ident, tokens: TokenStream) -> syn::Result<()> {
         match ident.to_string().as_ref() {
-            "table_name" => {
-                self.table_name(parse2::<Equal<_>>(tokens.collect())?.t);
-            }
+            "table_name" => self.table_name(equal(tokens)?),
             _ => return Err(syn::Error::new_spanned(ident, "unknown parameter")),
-        }
+        };
         Ok(())
     }
 }
 
-#[derive(Builder, Debug, Clone)]
-#[builder(derive(Debug))]
+#[derive(Builder, Clone)]
 #[builder(setter(strip_option))]
 pub struct FieldAttr {
     #[builder(default)]
@@ -38,6 +35,9 @@ pub struct FieldAttr {
 
     #[builder(default)]
     pub sort_key: Option<()>,
+
+    // #[builder(default)]
+    // pub index: Option<Index>,
 }
 
 impl FieldAttr {
@@ -47,36 +47,55 @@ impl FieldAttr {
 }
 
 impl AttrBuilder for FieldAttrBuilder {
-    fn parse(&mut self, ident: Ident, tokens: impl Iterator<Item = TokenTree>) -> syn::Result<()> {
+    fn parse(&mut self, ident: Ident, tokens: TokenStream) -> syn::Result<()> {
         match ident.to_string().as_ref() {
-            "rename" => {
-                self.rename(parse2::<Equal<_>>(tokens.collect())?.t);
-            }
-            "partition_key" => {
-                self.partition_key(());
-            }
-            "sort_key" => {
-                self.sort_key(());
-            }
+            "rename" => self.rename(equal(tokens)?),
+            "partition_key" => self.partition_key(empty(tokens)?),
+            "sort_key" => self.sort_key(empty(tokens)?),
+            // "index" => self.index(parse2(tokens)?),
             _ => return Err(syn::Error::new_spanned(ident, "unknown parameter")),
-        }
+        };
         Ok(())
     }
 }
 
-struct Equal<T> {
-    _equal: Token![=],
-    t: T,
+fn equal<T: syn::parse::Parse>(tokens: TokenStream) -> syn::Result<T> {
+    struct Equal<T> {
+        _equal: Token![=],
+        t: T,
+    }
+
+    impl<T: syn::parse::Parse> syn::parse::Parse for Equal<T> {
+        fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+            Ok(Self {
+                _equal: input.parse()?,
+                t: input.parse()?,
+            })
+        }
+    }
+
+    Ok(parse2::<Equal<_>>(tokens)?.t)
 }
 
-impl<T: syn::parse::Parse> syn::parse::Parse for Equal<T> {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        Ok(Self {
-            _equal: input.parse()?,
-            t: input.parse()?,
-        })
+fn empty(tokens: TokenStream) -> syn::Result<()> {
+    struct Empty {}
+    impl syn::parse::Parse for Empty {
+        fn parse(_: syn::parse::ParseStream) -> syn::Result<Self> {
+            Ok(Self {})
+        }
     }
+
+    parse2::<Empty>(tokens)?;
+    Ok(())
 }
+
+// #[derive(Clone)]
+// pub struct Index {}
+// impl syn::parse::Parse for Index {
+//     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+//         Ok(Self {})
+//     }
+// }
 
 trait AttrBuilder: Sized {
     fn parse_attrs(mut self, attrs: Vec<syn::Attribute>) -> syn::Result<Self> {
@@ -124,15 +143,8 @@ trait AttrBuilder: Sized {
             None => return Err(syn::Error::new(span, "expected ident to follow")),
         };
 
-        self.parse(ident, &mut tokens)?;
-
-        let stream: TokenStream = tokens.collect();
-        if stream.is_empty() {
-            Ok(())
-        } else {
-            Err(syn::Error::new_spanned(stream, "unexpected tokens"))
-        }
+        self.parse(ident, tokens.collect())
     }
 
-    fn parse(&mut self, ident: Ident, tokens: impl Iterator<Item = TokenTree>) -> syn::Result<()>;
+    fn parse(&mut self, ident: Ident, tokens: TokenStream) -> syn::Result<()>;
 }
