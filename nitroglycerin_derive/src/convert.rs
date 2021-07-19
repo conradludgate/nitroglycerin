@@ -135,7 +135,7 @@ impl ToTokens for FromBuilder {
             impl #impl_generics ::nitroglycerin::convert::FromAttributeValue for #ident #ty_generics #where_clause {
                 fn try_from_av(av: ::nitroglycerin::dynamodb::AttributeValue) -> ::std::result::Result<Self, ::nitroglycerin::AttributeError> {
                     av.m.ok_or(::nitroglycerin::AttributeError::IncorrectType).and_then(
-                        <Self as ::std::convert::TryFrom<::nitroglycerin::Attributes, Error = ::nitroglycerin::AttributeError>>::try_from
+                        <Self as ::std::convert::TryFrom<::nitroglycerin::Attributes>>::try_from
                     )
                 }
             }
