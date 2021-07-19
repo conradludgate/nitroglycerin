@@ -17,7 +17,7 @@ pub fn new_input<I: TableIndex, K: IntoAttributeValue>(key_name: &str, key_value
 }
 
 /// Trait that declares a type can be built into a query request
-pub trait Query<D>: Table {
+pub trait Query<D>: TableIndex {
     /// The builder type that performs the query request
     type Builder;
 

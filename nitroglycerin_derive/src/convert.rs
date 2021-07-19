@@ -75,6 +75,16 @@ impl ToTokens for IntoBuilder {
                     ]).collect()
                 }
             }
+
+            impl #impl_generics ::nitroglycerin::convert::IntoAttributeValue for #ident #ty_generics #where_clause
+            {
+                fn into_av(self) -> ::nitroglycerin::dynamodb::AttributeValue {
+                    ::nitroglycerin::dynamodb::AttributeValue {
+                        m: ::std::option::Option::Some(<Self as ::std::convert::Into<::nitroglycerin::Attributes>>::into(self)),
+                        ..::nitroglycerin::dynamodb::AttributeValue::default()
+                    }
+                }
+            }
         });
     }
 }
@@ -119,6 +129,14 @@ impl ToTokens for FromBuilder {
                             #idents: ::nitroglycerin::convert::extract::<#tys>(&mut a, #names)?,
                         )*
                     })
+                }
+            }
+
+            impl #impl_generics ::nitroglycerin::convert::FromAttributeValue for #ident #ty_generics #where_clause {
+                fn try_from_av(av: ::nitroglycerin::dynamodb::AttributeValue) -> ::std::result::Result<Self, ::nitroglycerin::AttributeError> {
+                    av.m.ok_or(::nitroglycerin::AttributeError::IncorrectType).and_then(
+                        <Self as ::std::convert::TryFrom<::nitroglycerin::Attributes, Error = ::nitroglycerin::AttributeError>>::try_from
+                    )
                 }
             }
         });
