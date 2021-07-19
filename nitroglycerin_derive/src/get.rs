@@ -1,12 +1,12 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
-use syn::{Ident, Visibility};
+use syn::{Expr, Ident, Visibility};
 
 use crate::query::Column;
 
 pub struct GetBuilder {
     pub vis: Visibility,
-    pub table_name: String,
+    pub table_name: Expr,
     pub output: Ident,
 
     pub partition_key: Column,
@@ -41,11 +41,11 @@ impl ToTokens for GetBuilder {
             }) => quote! {
                 #vis struct #builder_p<D> {
                     client: D,
-                    input: ::nitroglycerin::dynomite::dynamodb::GetItemInput,
+                    input: ::nitroglycerin::dynamodb::GetItemInput,
                 }
 
                 impl<D> #builder_p<D> {
-                    pub fn new(client: D, input: ::nitroglycerin::dynomite::dynamodb::GetItemInput) -> Self {
+                    fn new(client: D, input: ::nitroglycerin::dynamodb::GetItemInput) -> Self {
                         Self { client, input }
                     }
 
@@ -53,7 +53,10 @@ impl ToTokens for GetBuilder {
                         let sort_key = #s_ident;
                         let Self { client, mut input } = self;
 
-                        input.key.insert(#s_name.to_owned(), sort_key.into_attr());
+                        input.key.insert(
+                            #s_name.to_owned(),
+                            <#s_ty as ::nitroglycerin::convert::IntoAttributeValue>::into_av(sort_key),
+                        );
 
                         ::nitroglycerin::get::GetExpr::new(client, input)
                     }
@@ -82,7 +85,7 @@ impl ToTokens for GetBuilder {
                     let partition_key = #p_ident;
                     let Self { client } = self;
 
-                    let input = ::nitroglycerin::get::new_input(#table_name, #p_name, partition_key);
+                    let input = ::nitroglycerin::get::new_input(#table_name.into(), #p_name, partition_key);
 
                     #builder_p::new(client, input)
                 }

@@ -1,9 +1,11 @@
-use crate::split_by::IterExt;
 use proc_macro2::{Delimiter, Span, TokenStream, TokenTree};
+use syn::{Expr, LitStr};
+
+use crate::split_by::IterExt;
 
 #[derive(Builder)]
 pub struct TableAttr {
-    pub table_name: syn::LitStr,
+    pub table_name: Expr,
 }
 
 impl TableAttr {
@@ -14,9 +16,7 @@ impl TableAttr {
                 output.parse_attr(attr.tokens)?;
             }
         }
-        output
-            .build()
-            .map_err(|err| syn::Error::new(Span::call_site(), err))
+        output.build().map_err(|err| syn::Error::new(Span::call_site(), err))
     }
 }
 
@@ -24,13 +24,8 @@ impl TableAttrBuilder {
     pub fn parse_attr(&mut self, tokens: TokenStream) -> syn::Result<()> {
         for tt in tokens.into_iter() {
             let (inner, span) = match tt {
-                TokenTree::Group(g) if g.delimiter() == Delimiter::Parenthesis => {
-                    Ok((g.stream(), g.span()))
-                }
-                t => Err(syn::Error::new_spanned(
-                    t,
-                    "expected parenthesied attribute arguments",
-                )),
+                TokenTree::Group(g) if g.delimiter() == Delimiter::Parenthesis => Ok((g.stream(), g.span())),
+                t => Err(syn::Error::new_spanned(t, "expected parenthesied attribute arguments")),
             }?;
 
             self.parse_args(span, inner.into_iter().peekable())?;
@@ -38,11 +33,7 @@ impl TableAttrBuilder {
         Ok(())
     }
 
-    pub fn parse_args(
-        &mut self,
-        mut span: Span,
-        tokens: impl IntoIterator<Item = TokenTree>,
-    ) -> syn::Result<()> {
+    pub fn parse_args(&mut self, mut span: Span, tokens: impl IntoIterator<Item = TokenTree>) -> syn::Result<()> {
         let mut tokens = tokens.into_iter();
         let mut split = tokens.split_by(|tt| match tt {
             TokenTree::Punct(p) => p.as_char() == ',',
@@ -58,11 +49,7 @@ impl TableAttrBuilder {
         }
     }
 
-    pub fn parse_arg(
-        &mut self,
-        span: Span,
-        tokens: impl IntoIterator<Item = TokenTree>,
-    ) -> syn::Result<()> {
+    pub fn parse_arg(&mut self, span: Span, tokens: impl IntoIterator<Item = TokenTree>) -> syn::Result<()> {
         let mut tokens = tokens.into_iter();
         let ident = match tokens.next() {
             Some(TokenTree::Ident(i)) => i,
@@ -71,15 +58,28 @@ impl TableAttrBuilder {
         };
 
         match ident.to_string().as_ref() {
-            "table_name" => self.table_name = Some(equal(ident.span(), tokens)?),
+            "table_name" => {
+                self.table_name(equal(ident.span(), tokens)?);
+            }
             _ => return Err(syn::Error::new_spanned(ident, "unknown parameter")),
         }
         Ok(())
     }
 }
 
-#[derive(Builder, Default)]
-pub struct FieldAttr {}
+#[derive(Builder, Debug)]
+#[builder(derive(Debug))]
+#[builder(setter(strip_option))]
+pub struct FieldAttr {
+    #[builder(default)]
+    pub rename: Option<LitStr>,
+
+    #[builder(default)]
+    pub partition_key: Option<()>,
+
+    #[builder(default)]
+    pub sort_key: Option<()>,
+}
 
 impl FieldAttr {
     pub fn parse_attrs(attrs: Vec<syn::Attribute>) -> syn::Result<Self> {
@@ -89,9 +89,7 @@ impl FieldAttr {
                 output.parse_attr(attr.tokens)?;
             }
         }
-        output
-            .build()
-            .map_err(|err| syn::Error::new(Span::call_site(), err))
+        output.build().map_err(|err| syn::Error::new(Span::call_site(), err))
     }
 }
 
@@ -99,13 +97,8 @@ impl FieldAttrBuilder {
     pub fn parse_attr(&mut self, tokens: TokenStream) -> syn::Result<()> {
         for tt in tokens.into_iter() {
             let (inner, span) = match tt {
-                TokenTree::Group(g) if g.delimiter() == Delimiter::Parenthesis => {
-                    Ok((g.stream(), g.span()))
-                }
-                t => Err(syn::Error::new_spanned(
-                    t,
-                    "expected parenthesied attribute arguments",
-                )),
+                TokenTree::Group(g) if g.delimiter() == Delimiter::Parenthesis => Ok((g.stream(), g.span())),
+                t => Err(syn::Error::new_spanned(t, "expected parenthesied attribute arguments")),
             }?;
 
             self.parse_args(span, inner.into_iter().peekable())?;
@@ -113,11 +106,7 @@ impl FieldAttrBuilder {
         Ok(())
     }
 
-    pub fn parse_args(
-        &mut self,
-        mut span: Span,
-        tokens: impl IntoIterator<Item = TokenTree>,
-    ) -> syn::Result<()> {
+    pub fn parse_args(&mut self, mut span: Span, tokens: impl IntoIterator<Item = TokenTree>) -> syn::Result<()> {
         let mut tokens = tokens.into_iter();
         let mut split = tokens.split_by(|tt| match tt {
             TokenTree::Punct(p) => p.as_char() == ',',
@@ -133,11 +122,7 @@ impl FieldAttrBuilder {
         }
     }
 
-    pub fn parse_arg(
-        &mut self,
-        span: Span,
-        tokens: impl IntoIterator<Item = TokenTree>,
-    ) -> syn::Result<()> {
+    pub fn parse_arg(&mut self, span: Span, tokens: impl IntoIterator<Item = TokenTree>) -> syn::Result<()> {
         let mut tokens = tokens.into_iter();
         let ident = match tokens.next() {
             Some(TokenTree::Ident(i)) => i,
@@ -145,22 +130,23 @@ impl FieldAttrBuilder {
             None => return Err(syn::Error::new(span, "expected ident to follow")),
         };
 
-        match ident.to_string() {
-            x => {
-                return Err(syn::Error::new_spanned(
-                    ident,
-                    format!("unknown parameter {:?}", x),
-                ))
+        match ident.to_string().as_ref() {
+            "rename" => {
+                self.rename(equal(ident.span(), tokens)?);
             }
+            "partition_key" => {
+                self.partition_key(empty(tokens)?);
+            }
+            "sort_key" => {
+                self.sort_key(empty(tokens)?);
+            }
+            _ => return Err(syn::Error::new_spanned(ident, "unknown parameter")),
         }
-        // Ok(())
+        Ok(())
     }
 }
 
-fn equal<T: syn::parse::Parse>(
-    span: Span,
-    mut tokens: impl Iterator<Item = TokenTree>,
-) -> syn::Result<T> {
+fn equal<T: syn::parse::Parse>(span: Span, mut tokens: impl Iterator<Item = TokenTree>) -> syn::Result<T> {
     match tokens.next() {
         Some(TokenTree::Punct(p)) => {
             if p.as_char() != '=' {
@@ -172,4 +158,13 @@ fn equal<T: syn::parse::Parse>(
     }
 
     syn::parse2(tokens.collect())
+}
+
+fn empty(tokens: impl Iterator<Item = TokenTree>) -> syn::Result<()> {
+    let stream: TokenStream = tokens.collect();
+    if stream.is_empty() {
+        Ok(())
+    } else {
+        Err(syn::Error::new_spanned(stream, "unexpected tokens"))
+    }
 }

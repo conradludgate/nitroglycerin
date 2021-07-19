@@ -1,22 +1,15 @@
 use std::{convert::TryFrom, marker::PhantomData, ops::RangeInclusive};
 
-use dynomite::{
-    dynamodb::{DynamoDb, QueryError, QueryInput},
-    Attribute, AttributeError, Attributes,
-};
+use rusoto_dynamodb::{DynamoDb, QueryError, QueryInput};
 
-use crate::DynamoError;
+use crate::{convert::IntoAttributeValue, AttributeError, Attributes, DynamoError};
 
-pub fn new_input<K: Attribute>(table_name: &str, key_name: &str, key_value: K) -> QueryInput {
+pub fn new_input<K: IntoAttributeValue>(table_name: String, key_name: &str, key_value: K) -> QueryInput {
     QueryInput {
-        table_name: table_name.to_owned(),
+        table_name,
         key_condition_expression: Some("#0 = :0".to_string()),
-        expression_attribute_names: Some(
-            <_>::into_iter([("#0".to_owned(), key_name.to_owned())]).collect(),
-        ),
-        expression_attribute_values: Some(
-            <_>::into_iter([(":0".to_owned(), key_value.into_attr())]).collect(),
-        ),
+        expression_attribute_names: Some(<_>::into_iter([("#0".to_owned(), key_name.to_owned())]).collect()),
+        expression_attribute_values: Some(<_>::into_iter([(":0".to_owned(), key_value.into_av())]).collect()),
         ..QueryInput::default()
     }
 }
@@ -36,13 +29,13 @@ impl<D, S, I> QueryBuilderSort<D, S, I> {
 
 impl<D, S, I> QueryBuilderSort<D, S, I>
 where
-    S: Attribute,
+    S: IntoAttributeValue,
 {
     fn push_expr(&mut self, f: &str) {
         self.input.key_condition_expression.as_mut().map(|s| *s = format!("{} {}", *s, f));
     }
     fn push_value(&mut self, key: &str, sort: S) {
-        self.input.expression_attribute_values.as_mut().map(|v| v.insert(key.to_owned(), sort.into_attr()));
+        self.input.expression_attribute_values.as_mut().map(|v| v.insert(key.to_owned(), sort.into_av()));
     }
     fn build(self) -> QueryExpr<D, I> {
         let Self { client, input, _phantom } = self;

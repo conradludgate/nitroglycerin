@@ -1,15 +1,8 @@
 use std::convert::TryFrom;
 
-use dynomite::{
-    dynamodb::{DynamoDb, QueryError, QueryInput},
-    Attribute, Attributes,
-};
+use rusoto_dynamodb::{QueryError, QueryInput};
 
-use crate::{
-    DynamoError,
-    query::{self, QueryBuilderSort, QueryExpr},
-    Query,
-};
+use crate::{AttributeError, Attributes, DynamoError, Query, client::DynamoDb, convert::{FromAttributeValue, extract}, query::{self, QueryBuilderSort, QueryExpr}};
 
 pub struct FooIndex {
     id: String, // partition key
@@ -17,11 +10,11 @@ pub struct FooIndex {
 }
 
 impl TryFrom<Attributes> for FooIndex {
-    type Error = dynomite::AttributeError;
+    type Error = AttributeError;
     fn try_from(mut value: Attributes) -> Result<Self, Self::Error> {
         Ok(FooIndex {
-            id: String::from_attr(value.remove("id").ok_or_else(|| dynomite::AttributeError::MissingField { name: "id".to_owned() })?)?,
-            time: i64::from_attr(value.remove("time").ok_or_else(|| dynomite::AttributeError::MissingField { name: "time".to_owned() })?)?,
+            id: extract(&mut value, "id")?,
+            time: extract(&mut value, "time")?,
         })
     }
 }
@@ -41,7 +34,7 @@ impl<D> FooIndexQueryBuilder<D> {
     pub fn id(self, id: String) -> FooIndexQueryBuilderPrimary<D> {
         let Self { client } = self;
 
-        let mut input = query::new_input("Foo", "id", id);
+        let mut input = query::new_input("Foo".into(), "id", id);
         input.index_name = Some("FooIndex".to_owned());
 
         FooIndexQueryBuilderPrimary { client, input }
@@ -54,7 +47,7 @@ pub struct FooIndexQueryBuilderPrimary<D> {
 }
 
 impl<D: DynamoDb> FooIndexQueryBuilderPrimary<D> {
-    pub fn consistent_read(mut self) -> QueryExpr<D, FooIndex> {
+    pub fn consistent_read(self) -> QueryExpr<D, FooIndex> {
         let Self { client, input } = self;
         QueryExpr::new(client, input).consistent_read()
     }

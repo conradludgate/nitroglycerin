@@ -6,6 +6,7 @@ use syn::{parse_macro_input, spanned::Spanned, DeriveInput};
 extern crate derive_builder;
 
 mod attr;
+mod convert;
 mod get;
 mod query;
 mod split_by;

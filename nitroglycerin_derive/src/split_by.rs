@@ -11,11 +11,7 @@ impl<I: Iterator> IterExt for I {
         Self: Sized,
         F: FnMut(&Self::Item) -> bool,
     {
-        SplitBy {
-            iter: self,
-            split,
-            done: None,
-        }
+        SplitBy { iter: self, split, done: None }
     }
 }
 
@@ -32,7 +28,7 @@ impl<'a, I: 'a + Iterator, F: FnMut(&I::Item) -> bool> Iterator for SplitBy<'a, 
             None => {
                 self.done = Some(None);
                 None
-            },
+            }
             Some(item) => {
                 if (self.split)(&item) {
                     self.done = Some(Some(item));

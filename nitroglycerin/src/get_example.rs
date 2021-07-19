@@ -1,10 +1,11 @@
 use std::convert::TryFrom;
 
-use dynomite::{dynamodb::GetItemInput, Attribute, Attributes};
+use rusoto_dynamodb::GetItemInput;
 
 use crate::{
+    convert::{FromAttributeValue, IntoAttributeValue},
     get::{self, GetExpr},
-    Get,
+    AttributeError, Attributes, Get,
 };
 
 struct Foo {
@@ -13,11 +14,11 @@ struct Foo {
 }
 
 impl TryFrom<Attributes> for Foo {
-    type Error = dynomite::AttributeError;
+    type Error = AttributeError;
     fn try_from(mut value: Attributes) -> Result<Self, Self::Error> {
         Ok(Foo {
-            id: String::from_attr(value.remove("id").ok_or_else(|| dynomite::AttributeError::MissingField { name: "id".to_owned() })?)?,
-            time: i64::from_attr(value.remove("time").ok_or_else(|| dynomite::AttributeError::MissingField { name: "time".to_owned() })?)?,
+            id: String::try_from_av(value.remove("id").ok_or_else(|| AttributeError::MissingField("id".to_owned()))?)?,
+            time: i64::try_from_av(value.remove("time").ok_or_else(|| AttributeError::MissingField("time".to_owned()))?)?,
         })
     }
 }
@@ -37,7 +38,7 @@ impl<D> FooGetBuilder<D> {
     fn id(self, id: String) -> FooGetBuilderPartition<D> {
         let Self { client } = self;
 
-        let input = get::new_input("Foo", "id", id);
+        let input = get::new_input("Foo".into(), "id", id);
 
         FooGetBuilderPartition::new(client, input)
     }
@@ -57,7 +58,7 @@ impl<D> FooGetBuilderPartition<D> {
         let sort = time;
         let Self { client, mut input } = self;
 
-        input.key.insert("time".to_owned(), sort.into_attr());
+        input.key.insert("time".to_owned(), sort.into_av());
 
         GetExpr::new(client, input)
     }

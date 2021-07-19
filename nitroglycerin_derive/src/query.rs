@@ -1,17 +1,18 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
-use syn::{Ident, Type, Visibility};
+use syn::{Expr, Ident, Type, Visibility};
 
 pub struct QueryBuilder {
     pub vis: Visibility,
-    pub table_name: String,
-    pub index_name: Option<String>,
+    pub table_name: Expr,
+    pub index_name: Option<Expr>,
     pub output: Ident,
 
     pub partition_key: Column,
     pub sort_key: Option<Column>,
 }
 
+#[derive(Clone)]
 pub struct Column {
     pub ident: Ident,
     pub name: String,
@@ -47,11 +48,11 @@ impl ToTokens for QueryBuilder {
             }) => quote! {
                 #vis struct #builder_p<D> {
                     client: D,
-                    input: ::nitroglycerin::dynomite::dynamodb::QueryInput,
+                    input: ::nitroglycerin::dynamodb::QueryInput,
                 }
 
                 impl<D> #builder_p<D> {
-                    pub fn new(client: D, input: ::nitroglycerin::dynomite::dynamodb::QueryInput) -> Self {
+                    fn new(client: D, input: ::nitroglycerin::dynamodb::QueryInput) -> Self {
                         Self { client, input }
                     }
 
@@ -60,14 +61,14 @@ impl ToTokens for QueryBuilder {
                         ::nitroglycerin::query::QueryBuilderSort::new(client, input, #s_name)
                     }
 
-                    #vis fn consistent_read(mut self) -> ::nitroglycerin::query::QueryExpr<D, #output> {
+                    #vis fn consistent_read(self) -> ::nitroglycerin::query::QueryExpr<D, #output> {
                         let Self { client, input } = self;
                         ::nitroglycerin::query::QueryExpr::new(client, input).consistent_read()
                     }
                 }
 
-                impl<D: ::nitroglycerin::dynomite::dynamodb::DynamoDb> #builder_p<D> {
-                    #vis async fn execute(self) -> ::std::result::Result<::std::vec::Vec<#output>, ::nitroglycerin::DynamoError<::nitroglycerin::dynomite::dynamodb::QueryError>> {
+                impl<D: ::nitroglycerin::dynamodb::DynamoDb> #builder_p<D> {
+                    #vis async fn execute(self) -> ::std::result::Result<::std::vec::Vec<#output>, ::nitroglycerin::DynamoError<::nitroglycerin::dynamodb::QueryError>> {
                         let Self { client, input } = self;
                         ::nitroglycerin::query::QueryExpr::new(client, input).execute().await
                     }
@@ -80,11 +81,11 @@ impl ToTokens for QueryBuilder {
 
         let input = match index_name {
             Some(index_name) => quote! {
-                let mut input = ::nitroglycerin::query::new_input(#table_name, #p_name, partition_key);
-                input.index_name = Some(#index_name.to_owned());
+                let mut input = ::nitroglycerin::query::new_input(#table_name.into(), #p_name, partition_key);
+                input.index_name = Some(#index_name.into());
             },
             None => quote! {
-                let input = ::nitroglycerin::query::new_input(#table_name, #p_name, partition_key);
+                let input = ::nitroglycerin::query::new_input(#table_name.into(), #p_name, partition_key);
             },
         };
 

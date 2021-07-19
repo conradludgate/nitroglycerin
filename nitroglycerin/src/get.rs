@@ -1,13 +1,13 @@
 use std::{convert::TryFrom, marker::PhantomData};
 
-use dynomite::{Attribute, AttributeError, Attributes, dynamodb::{DynamoDb, GetItemError, GetItemInput}};
+use rusoto_dynamodb::{GetItemError, GetItemInput};
 
-use crate::DynamoError;
+use crate::{convert::IntoAttributeValue, client::DynamoDb, AttributeError, Attributes, DynamoError};
 
-pub fn new_input<K: Attribute>(table_name: &str, key_name: &str, key_value: K) -> GetItemInput {
+pub fn new_input<K: IntoAttributeValue>(table_name: String, key_name: &str, key_value: K) -> GetItemInput {
     GetItemInput {
-        table_name: table_name.to_owned(),
-        key: <_>::into_iter([(key_name.to_owned(), key_value.into_attr())]).collect(),
+        table_name,
+        key: <_>::into_iter([(key_name.to_owned(), key_value.into_av())]).collect(),
         ..GetItemInput::default()
     }
 }

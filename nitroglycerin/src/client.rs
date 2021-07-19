@@ -1,6 +1,6 @@
 use crate::{Get, Query};
 
-pub trait DynamoDb: dynomite::dynamodb::DynamoDb + Clone {
+pub trait DynamoDb: rusoto_dynamodb::DynamoDb + Clone {
     fn get<T: Get<Self>>(&self) -> T::Builder {
         T::get(self.clone())
     }
@@ -9,4 +9,4 @@ pub trait DynamoDb: dynomite::dynamodb::DynamoDb + Clone {
     }
 }
 
-impl<D: dynomite::dynamodb::DynamoDb + Clone> DynamoDb for D {}
+impl<D: rusoto_dynamodb::DynamoDb + Clone> DynamoDb for D {}
