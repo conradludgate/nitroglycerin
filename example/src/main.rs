@@ -1,11 +1,9 @@
-use std::marker::PhantomData;
-
 use nitroglycerin::{dynamodb::DynamoDbClient, DynamoDb, Table};
 use rusoto_core::Region;
 
 #[derive(Debug, Table)]
 #[nitro(table_name = "Foo")]
-pub struct FooTable<ID> {
+pub struct FooTable<ID: Clone> {
     #[nitro(partition_key)]
     id: ID,
 

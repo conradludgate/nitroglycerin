@@ -34,16 +34,15 @@ impl Table {
         let convert = ConvertBuilder::new(name.to_owned(), generics.clone(), columns.clone());
 
         let get = GetBuilder::new(vis.to_owned(), attrs.table_name.clone(), name.to_owned(), generics.clone(), partition_key.clone(), sort_key.clone());
-
-        let query = QueryBuilder {
-            vis: vis.to_owned(),
-            table_name: attrs.table_name,
-            index_name: None,
-            output: name.to_owned(),
-            partition_key: partition_key,
-            sort_key: sort_key,
-            generics: generics,
-        };
+        let query = QueryBuilder::new(
+            vis.to_owned(),
+            attrs.table_name.clone(),
+            None,
+            name.to_owned(),
+            generics.clone(),
+            partition_key.clone(),
+            sort_key.clone(),
+        );
 
         Ok(Table { convert, get, query })
     }

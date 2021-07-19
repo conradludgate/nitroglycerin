@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::ToTokens;
-use syn::{parse_macro_input, spanned::Spanned, DeriveInput};
+use syn::{parse_macro_input, parse_quote, spanned::Spanned, DeriveInput};
 
 #[macro_use]
 extern crate derive_builder;
@@ -31,4 +31,17 @@ pub fn derive_parse(input: TokenStream) -> TokenStream {
         syn::Data::Union(_) => syn::Error::new(span, "unions not supported").into_compile_error(),
     }
     .into()
+}
+
+#[derive(Clone, Copy)]
+struct D;
+impl From<D> for syn::Ident {
+    fn from(_: D) -> Self {
+        parse_quote!(__NitroglycerinDynamoDBClient)
+    }
+}
+impl quote::ToTokens for D {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        syn::Ident::from(*self).to_tokens(tokens);
+    }
 }
