@@ -151,12 +151,12 @@ impl ToTokens for QueryBuilder1 {
             }
 
             impl #impl_generics #builder #ty_generics #where_clause {
-                #vis fn #p_ident(self, #p_ident: #p_ty) -> #builder_p #ty_generics
+                #vis fn #p_ident(self, #p_ident: impl ::std::convert::Into<#p_ty>) -> #builder_p #ty_generics
                 where
                     #p_ty: ::nitroglycerin::convert::IntoAttributeValue,
                     #output #ty_generics2: ::nitroglycerin::TableIndex,
                 {
-                    let partition_key = #p_ident;
+                    let partition_key: #p_ty = #p_ident.into();
                     let Self { client, _phantom } = self;
 
                     let input = ::nitroglycerin::query::new_input::<#output #ty_generics2, _>(#p_name, partition_key);

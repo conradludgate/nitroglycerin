@@ -4,6 +4,12 @@ use rusoto_dynamodb::AttributeValue;
 
 use crate::{AttributeError, Attributes};
 
+#[cfg(feature = "uuid")]
+mod uuid;
+
+#[cfg(feature = "chrono")]
+mod chrono;
+
 /// Remove and parse a value from an Attribute `HashMap`
 ///
 /// # Errors

@@ -150,12 +150,12 @@ impl ToTokens for GetBuilder1 {
             }
 
             impl #impl_generics #builder #ty_generics #where_clause {
-                #vis fn #p_ident(self, #p_ident: #p_ty) -> #builder_p #ty_generics
+                #vis fn #p_ident(self, #p_ident: impl ::std::convert::Into<#p_ty>) -> #builder_p #ty_generics
                 where
                     #p_ty: ::nitroglycerin::convert::IntoAttributeValue,
                     #output #ty_generics2: ::nitroglycerin::Table,
                 {
-                    let partition_key = #p_ident;
+                    let partition_key: #p_ty = #p_ident.into();
                     let Self { client, _phantom } = self;
 
                     let input = ::nitroglycerin::get::new_input::<#output #ty_generics2, _>(#p_name, partition_key);
@@ -235,11 +235,11 @@ impl ToTokens for GetBuilder2 {
                         Self { client, input, _phantom: ::std::marker::PhantomData }
                     }
 
-                    #vis fn #s_ident(self, #s_ident: #s_ty) -> ::nitroglycerin::get::Expr<#D, #output #ty_generics2>
+                    #vis fn #s_ident(self, #s_ident: impl ::std::convert::Into<#s_ty>) -> ::nitroglycerin::get::Expr<#D, #output #ty_generics2>
                     where
                         #s_ty: ::nitroglycerin::convert::IntoAttributeValue,
                     {
-                        let sort_key = #s_ident;
+                        let sort_key: #s_ty = #s_ident.into();
                         let Self { client, mut input, _phantom } = self;
 
                         input.key.insert(

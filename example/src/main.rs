@@ -20,7 +20,7 @@ impl<ID: Clone> Table for FooTable<ID> {
 #[tokio::main]
 async fn main() {
     let client = DynamoDbClient::new(Region::default());
-    let foo = client.get::<FooTable<String>>().id("foo".to_owned()).time(5).execute().await.unwrap();
+    let foo = client.get::<FooTable<String>>().id("foo").time(5u32).execute().await.unwrap();
 
     println!("{:?}", foo);
 }

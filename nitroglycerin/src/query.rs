@@ -60,54 +60,54 @@ where
     }
 
     /// Query for sort key equal
-    pub fn equal(mut self, sort: S) -> Expr<D, I> {
+    pub fn equal(mut self, sort: impl Into<S>) -> Expr<D, I> {
         self.push_expr("AND #1 = :1");
-        self.push_value(":1", sort);
+        self.push_value(":1", sort.into());
         self.build()
     }
 
     /// Query for sort key less than
-    pub fn less_than(mut self, sort: S) -> Expr<D, I> {
+    pub fn less_than(mut self, sort: impl Into<S>) -> Expr<D, I> {
         self.push_expr("AND #1 < :1");
-        self.push_value(":1", sort);
+        self.push_value(":1", sort.into());
         self.build()
     }
 
     /// Query for sort key less than or equal
-    pub fn less_than_or_equal(mut self, sort: S) -> Expr<D, I> {
+    pub fn less_than_or_equal(mut self, sort: impl Into<S>) -> Expr<D, I> {
         self.push_expr("AND #1 <= :1");
-        self.push_value(":1", sort);
+        self.push_value(":1", sort.into());
         self.build()
     }
 
     /// Query for sort key greater than
-    pub fn greater_than(mut self, sort: S) -> Expr<D, I> {
+    pub fn greater_than(mut self, sort: impl Into<S>) -> Expr<D, I> {
         self.push_expr("AND #1 > :1");
-        self.push_value(":1", sort);
+        self.push_value(":1", sort.into());
         self.build()
     }
 
     /// Query for sort key greater than or equal
-    pub fn greater_than_or_equal(mut self, sort: S) -> Expr<D, I> {
+    pub fn greater_than_or_equal(mut self, sort: impl Into<S>) -> Expr<D, I> {
         self.push_expr("AND #1 >= :1");
-        self.push_value(":1", sort);
+        self.push_value(":1", sort.into());
         self.build()
     }
 
     /// Query for sort key between
-    pub fn between(mut self, sort: RangeInclusive<S>) -> Expr<D, I> {
+    pub fn between(mut self, sort: RangeInclusive<impl Into<S>>) -> Expr<D, I> {
         let (sort1, sort2) = sort.into_inner();
 
         self.push_expr("AND #1 BETWEEN :1 AND :2");
-        self.push_value(":1", sort1);
-        self.push_value(":2", sort2);
+        self.push_value(":1", sort1.into());
+        self.push_value(":2", sort2.into());
         self.build()
     }
 
     /// Query for sort key beginning with
-    pub fn begins_with(mut self, sort: S) -> Expr<D, I> {
+    pub fn begins_with(mut self, sort: impl Into<S>) -> Expr<D, I> {
         self.push_expr("AND begins_with(#1, :1)");
-        self.push_value(":1", sort);
+        self.push_value(":1", sort.into());
         self.build()
     }
 }
