@@ -19,6 +19,7 @@ pub trait Query<D>: TryFrom<Attributes, Error = AttributeError> {
     type Builder;
     fn query(client: D) -> Self::Builder;
 }
+
 #[derive(Debug, Error)]
 pub enum DynamoError<E: Error + 'static> {
     #[error("could not parse dynamo attributes: {0}")]
