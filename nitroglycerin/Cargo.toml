@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2018"
 authors = ["Conrad Ludgate <conradludgate@gmail.com>"]
 license = "MIT"
+description = "High level dynamodb crate"
 repository = "https://github.com/conradludgate/nitroglycerin"
 readme = "../README.md"
 

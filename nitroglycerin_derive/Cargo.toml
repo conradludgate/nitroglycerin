@@ -3,6 +3,7 @@ name = "nitroglycerin_derive"
 version = "0.1.0"
 edition = "2018"
 authors = ["Conrad Ludgate <conradludgate@gmail.com>"]
+description = "derive(Attributes, Get, Query) for nitroglycerin/dynamodb"
 license = "MIT"
 repository = "https://github.com/conradludgate/nitroglycerin"
 readme = "../README.md"
