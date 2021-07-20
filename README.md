@@ -55,11 +55,11 @@ let new_employee = Employee {
 client.put(new_employee).execute().await?;
 
 let employees: Vec<EmployeeNameIndex> = client.query::<EmployeeNameIndex>()
-    .name("John".to_string()) // query the db for all employees named "John"
+    .name("John") // query the db for all employees named "John"
     .execute().await?;
 
 let employees: Vec<EmployeeNameIndex> = client.query::<EmployeeNameIndex>()
-    .name("John".to_string()) // query the db for all employees named "John"
+    .name("John") // query the db for all employees named "John"
     .joined().between(1626649200, 1626735600) // and who joined between 2021-07-19 and 2021-07-20
     .execute().await?;
 ```
