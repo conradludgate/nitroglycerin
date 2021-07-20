@@ -1,5 +1,8 @@
 # nitroglycerin
-Type safe abstractions over dynamodb (extending on dynomite)
+Type safe abstractions over dynamodb
+
+[![nitroglycerin crate](https://img.shields.io/crates/v/nitroglycerin?style=flat-square)](https://crates.io/crates/nitroglycerin)
+[![nitroglycerin docs](https://img.shields.io/docsrs/nitroglycerin?style=flat-square)](https://docs.rs/nitroglycerin/latest/nitroglycerin/)
 
 ```rust
 use nitroglycerin::{Attributes, Key, Query, Table, DynamoDb, dynamodb::DynamoDbClient};
