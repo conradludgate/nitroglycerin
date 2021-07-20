@@ -1,7 +1,7 @@
-use nitroglycerin::{dynamodb::DynamoDbClient, Attributes, DynamoDb, Get, Query, Table};
+use nitroglycerin::{dynamodb::DynamoDbClient, Attributes, DynamoDb, Key, Query, Table};
 use rusoto_core::Region;
 
-#[derive(Debug, Get, Query, Attributes)]
+#[derive(Debug, Attributes, Key, Query)]
 pub struct FooTable<ID: Clone> {
     #[nitro(partition_key)]
     id: ID,

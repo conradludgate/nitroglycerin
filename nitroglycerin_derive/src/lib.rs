@@ -10,7 +10,7 @@ extern crate derive_builder;
 
 mod attr;
 mod convert;
-mod get;
+mod key;
 mod query;
 mod split_by;
 
@@ -35,11 +35,13 @@ fn derive(input: TokenStream, parser: Parser) -> TokenStream {
     .into()
 }
 
-#[proc_macro_derive(Get, attributes(nitro))]
-pub fn derive_get(input: TokenStream) -> TokenStream {
-    derive(input, get::derive)
+/// Implement a strongly typed key builder. This is used to setup get requests
+#[proc_macro_derive(Key, attributes(nitro))]
+pub fn derive_key(input: TokenStream) -> TokenStream {
+    derive(input, key::derive)
 }
 
+/// Implement a strongly typed query builder. This is used to setup query requests
 #[proc_macro_derive(Query, attributes(nitro))]
 pub fn derive_query(input: TokenStream) -> TokenStream {
     derive(input, query::derive)

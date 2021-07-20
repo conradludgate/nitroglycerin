@@ -2,10 +2,10 @@
 Type safe abstractions over dynamodb (extending on dynomite)
 
 ```rust
-use nitroglycerin::{Attributes, Get, Query, Table, DynamoDb, dynamodb::DynamoDbClient};
+use nitroglycerin::{Attributes, Key, Query, Table, DynamoDb, dynamodb::DynamoDbClient};
 use rusoto_core::Region;
 
-#[derive(Debug, PartialEq, Attributes, Get, Query)]
+#[derive(Debug, PartialEq, Attributes, Key, Query)]
 struct Employee {
     #[nitro(partition_key)]
     id: String,

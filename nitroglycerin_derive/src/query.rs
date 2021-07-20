@@ -258,7 +258,7 @@ impl ToTokens for QueryBuilder2 {
                 }
             }),
             None => tokens.extend(quote! {
-                #vis type #builder_p #impl_generics = ::nitroglycerin::query::Expr<#D, #output #ty_generics2>;
+                #vis type #builder_p #ty_generics = ::nitroglycerin::query::Expr<#D, #output #ty_generics2>;
             }),
         }
     }

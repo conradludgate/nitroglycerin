@@ -1,40 +1,21 @@
-use std::{convert::TryFrom, marker::PhantomData};
+use std::{convert::TryFrom};
 
 use rusoto_dynamodb::{GetItemError, GetItemInput};
 
-use crate::{client::DynamoDb, convert::IntoAttributeValue, AttributeError, Attributes, DynamoError, Table};
+use crate::{client::DynamoDb, key, AttributeError, Attributes, DynamoError};
 
-/// create a [`GetItemInput`] using the table and partition key
-pub fn new_input<T: Table, K: IntoAttributeValue>(key_name: &str, key_value: K) -> GetItemInput {
-    GetItemInput {
-        table_name: T::table_name(),
-        key: <_>::into_iter([(key_name.to_owned(), key_value.into_av())]).collect(),
-        ..GetItemInput::default()
+impl From<key::Key> for GetItemInput {
+    fn from(k: key::Key) -> Self {
+        let key::Key { table_name, key } = k;
+        GetItemInput {
+            table_name,
+            key,
+            ..GetItemInput::default()
+        }
     }
 }
 
-/// Trait that declares a type can be built into a get item request
-pub trait Get<D>: Table {
-    /// The builder type that performs the get item request
-    type Builder;
-
-    /// Create the get item builder
-    fn get(client: D) -> Self::Builder;
-}
-
-/// Final output of a get item builder chain
-pub struct Expr<D, Table> {
-    client: D,
-    input: GetItemInput,
-    _phantom: PhantomData<Table>,
-}
-
-impl<D, T> Expr<D, T> {
-    /// Create a new `Expr`
-    pub const fn new(client: D, input: GetItemInput) -> Self {
-        Self { client, input, _phantom: PhantomData }
-    }
-
+impl<D, T> key::Expr<D, GetItemInput, T> {
     /// Enable consistent read for the get item request
     pub const fn consistent_read(mut self) -> Self {
         self.input.consistent_read = Some(true);
@@ -42,7 +23,7 @@ impl<D, T> Expr<D, T> {
     }
 }
 
-impl<D, T> Expr<D, T>
+impl<D, T> key::Expr<D, GetItemInput, T>
 where
     D: DynamoDb + Send,
     for<'a> &'a D: Send,

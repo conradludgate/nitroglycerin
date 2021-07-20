@@ -16,35 +16,48 @@ pub fn derive(vis: Visibility, name: syn::Ident, generics: syn::Generics, _attrs
 
     let sort_key = fields.iter().find_map(|f| f.attrs.sort_key.map(|_| f.clone().into()));
 
-    Ok(GetBuilder::new(vis, name, generics, partition_key, sort_key).to_token_stream())
+    Ok(KeyBuilder::new(vis, name, generics, partition_key, sort_key).to_token_stream())
 }
 
-struct GetBuilder {
+#[derive(Clone, Copy)]
+struct R;
+impl From<R> for syn::Ident {
+    fn from(_: R) -> Self {
+        parse_quote!(__NitroglycerinKeyRequest)
+    }
+}
+impl quote::ToTokens for R {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        syn::Ident::from(*self).to_tokens(tokens);
+    }
+}
+
+struct KeyBuilder {
     trait_builder: TraitBuilder,
-    get_builder1: GetBuilder1,
-    get_builder2: GetBuilder2,
+    key_builder1: KeyBuilder1,
+    key_builder2: KeyBuilder2,
 }
 
-impl GetBuilder {
+impl KeyBuilder {
     pub fn new(vis: Visibility, output: Ident, generics: Generics, partition_key: Column, sort_key: Option<Column>) -> Self {
         Self {
             trait_builder: TraitBuilder::new(output.clone(), generics.clone()),
-            get_builder1: GetBuilder1::new(vis.clone(), output.clone(), generics.clone(), partition_key),
-            get_builder2: GetBuilder2::new(vis, output, generics, sort_key),
+            key_builder1: KeyBuilder1::new(vis.clone(), output.clone(), generics.clone(), partition_key),
+            key_builder2: KeyBuilder2::new(vis, output, generics, sort_key),
         }
     }
 }
 
-impl ToTokens for GetBuilder {
+impl ToTokens for KeyBuilder {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self {
             trait_builder,
-            get_builder1,
-            get_builder2,
+            key_builder1,
+            key_builder2,
         } = self;
         trait_builder.to_tokens(tokens);
-        get_builder1.to_tokens(tokens);
-        get_builder2.to_tokens(tokens);
+        key_builder1.to_tokens(tokens);
+        key_builder2.to_tokens(tokens);
     }
 }
 
@@ -58,10 +71,15 @@ impl TraitBuilder {
     fn new(output: Ident, mut generics: Generics) -> Self {
         let generics2 = generics.clone();
 
-        generics.make_where_clause().predicates.push(parse_quote! {
+        let where_clause = generics.make_where_clause();
+        where_clause.predicates.push(parse_quote! {
             Self: ::nitroglycerin::Table
         });
+        where_clause.predicates.push(parse_quote! {
+            #R: ::std::convert::From<::nitroglycerin::key::Key>
+        });
         generics.params.push(parse_quote! { #D });
+        generics.params.push(parse_quote! { #R });
 
         Self { output, generics, generics2 }
     }
@@ -70,16 +88,16 @@ impl TraitBuilder {
 impl ToTokens for TraitBuilder {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self { output, generics, generics2 } = self;
-        let builder = format_ident!("{}GetBuilder", output);
+        let builder = format_ident!("{}KeyBuilder", output);
 
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
         let (_, ty_generics2, _) = generics2.split_for_impl();
 
         tokens.extend(quote! {
-            impl #impl_generics ::nitroglycerin::get::Get<#D> for #output #ty_generics2 #where_clause {
+            impl #impl_generics ::nitroglycerin::key::Builder<#D, #R> for #output #ty_generics2 #where_clause {
                 type Builder = #builder #ty_generics;
 
-                fn get(client: #D) -> Self::Builder {
+                fn key(client: #D) -> Self::Builder {
                     Self::Builder { client, _phantom: ::std::marker::PhantomData }
                 }
             }
@@ -87,7 +105,7 @@ impl ToTokens for TraitBuilder {
     }
 }
 
-struct GetBuilder1 {
+struct KeyBuilder1 {
     vis: Visibility,
     output: Ident,
     generics: Generics,
@@ -96,19 +114,26 @@ struct GetBuilder1 {
     partition_key: Column,
 }
 
-impl GetBuilder1 {
+impl KeyBuilder1 {
     fn new(vis: Visibility, output: Ident, mut generics: Generics, partition_key: Column) -> Self {
         let generics2 = generics.clone();
 
         let tys = generics.type_params().map(|tp| &tp.ident);
         let phantom_data = parse_quote! {
             (
+                #R,
                 #(
                     #tys,
                 )*
             )
         };
         generics.params.push(parse_quote! { #D });
+        generics.params.push(parse_quote! { #R });
+
+        let where_clause = generics.make_where_clause();
+        where_clause.predicates.push(parse_quote! {
+            #R: ::std::convert::From<::nitroglycerin::key::Key>
+        });
 
         Self {
             vis,
@@ -121,7 +146,7 @@ impl GetBuilder1 {
     }
 }
 
-impl ToTokens for GetBuilder1 {
+impl ToTokens for KeyBuilder1 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self {
             vis,
@@ -131,7 +156,7 @@ impl ToTokens for GetBuilder1 {
             phantom_data,
             partition_key,
         } = self;
-        let builder = format_ident!("{}GetBuilder", output);
+        let builder = format_ident!("{}KeyBuilder", output);
         let builder_p = format_ident!("{}Partition", builder);
 
         let Column {
@@ -158,16 +183,16 @@ impl ToTokens for GetBuilder1 {
                     let partition_key: #p_ty = #p_ident.into();
                     let Self { client, _phantom } = self;
 
-                    let input = ::nitroglycerin::get::new_input::<#output #ty_generics2, _>(#p_name, partition_key);
+                    let key = ::nitroglycerin::key::Key::new::<#output #ty_generics2, _>(#p_name, partition_key);
 
-                    #builder_p::new(client, input)
+                    #builder_p::new(client, key)
                 }
             }
         })
     }
 }
 
-struct GetBuilder2 {
+struct KeyBuilder2 {
     vis: Visibility,
     output: Ident,
     generics: Generics,
@@ -176,19 +201,26 @@ struct GetBuilder2 {
     sort_key: Option<Column>,
 }
 
-impl GetBuilder2 {
+impl KeyBuilder2 {
     fn new(vis: Visibility, output: Ident, mut generics: Generics, sort_key: Option<Column>) -> Self {
+        let generics2 = generics.clone();
+
         let tys = generics.type_params().map(|tp| &tp.ident);
         let phantom_data = parse_quote! {
             (
+                #R,
                 #(
                     #tys,
                 )*
             )
         };
-
-        let generics2 = generics.clone();
         generics.params.push(parse_quote! { #D });
+        generics.params.push(parse_quote! { #R });
+
+        let where_clause = generics.make_where_clause();
+        where_clause.predicates.push(parse_quote! {
+            #R: ::std::convert::From<::nitroglycerin::key::Key>
+        });
 
         Self {
             vis,
@@ -201,7 +233,7 @@ impl GetBuilder2 {
     }
 }
 
-impl ToTokens for GetBuilder2 {
+impl ToTokens for KeyBuilder2 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self {
             vis,
@@ -212,7 +244,7 @@ impl ToTokens for GetBuilder2 {
             phantom_data,
         } = self;
 
-        let builder = format_ident!("{}GetBuilder", output);
+        let builder = format_ident!("{}KeyBuilder", output);
         let builder_p = format_ident!("{}Partition", builder);
 
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
@@ -226,33 +258,30 @@ impl ToTokens for GetBuilder2 {
             }) => tokens.extend(quote! {
                 #vis struct #builder_p #impl_generics {
                     client: #D,
-                    input: ::nitroglycerin::dynamodb::GetItemInput,
+                    key: ::nitroglycerin::key::Key,
                     _phantom: ::std::marker::PhantomData<#phantom_data>,
                 }
 
                 impl #impl_generics #builder_p #ty_generics #where_clause {
-                    fn new(client: #D, input: ::nitroglycerin::dynamodb::GetItemInput) -> Self {
-                        Self { client, input, _phantom: ::std::marker::PhantomData }
+                    fn new(client: #D, key: ::nitroglycerin::key::Key) -> Self {
+                        Self { client, key, _phantom: ::std::marker::PhantomData }
                     }
 
-                    #vis fn #s_ident(self, #s_ident: impl ::std::convert::Into<#s_ty>) -> ::nitroglycerin::get::Expr<#D, #output #ty_generics2>
+                    #vis fn #s_ident(self, #s_ident: impl ::std::convert::Into<#s_ty>) -> ::nitroglycerin::key::Expr<#D, #R, #output #ty_generics2>
                     where
                         #s_ty: ::nitroglycerin::convert::IntoAttributeValue,
                     {
                         let sort_key: #s_ty = #s_ident.into();
-                        let Self { client, mut input, _phantom } = self;
+                        let Self { client, mut key, _phantom } = self;
 
-                        input.key.insert(
-                            #s_name.to_owned(),
-                            <#s_ty as ::nitroglycerin::convert::IntoAttributeValue>::into_av(sort_key),
-                        );
+                        key.insert(#s_name, sort_key);
 
-                        ::nitroglycerin::get::Expr::new(client, input)
+                        ::nitroglycerin::key::Expr::new(client, key)
                     }
                 }
             }),
             None => tokens.extend(quote! {
-                #vis type #builder_p #impl_generics = ::nitroglycerin::get::Expr<#D, #output #ty_generics2>;
+                #vis type #builder_p #ty_generics = ::nitroglycerin::key::Expr<#D, #R, #output #ty_generics2>;
             }),
         }
     }

@@ -1,10 +1,10 @@
 //! nitroglycerin - High level dynamodb crate
 //!
 //! ```ignore
-//! use nitroglycerin::{Attributes, Get, Query, Table, DynamoDb, dynamodb::DynamoDbClient};
+//! use nitroglycerin::{Attributes, Key, Query, Table, DynamoDb, dynamodb::DynamoDbClient};
 //! use rusoto_core::Region;
 //!
-//! #[derive(Debug, PartialEq, Attributes, Get, Query)]
+//! #[derive(Debug, PartialEq, Attributes, Key, Query)]
 //! struct Employee {
 //!     #[nitro(partition_key)]
 //!     id: String,
@@ -59,18 +59,19 @@ mod client;
 
 /// module covering conversions to and from dynamodb attribute values
 pub mod convert;
-
 /// collection of functions and types used to make get item requests
-pub mod get;
+mod get;
 /// collection of functions and types used to make put item requests
 pub mod put;
 /// collection of functions and types used to make query requests
 pub mod query;
+/// collection of functions and types used to make key requests
+pub mod key;
 
 use std::{collections::HashMap, error::Error};
 
 pub use client::DynamoDb;
-pub use nitroglycerin_derive::{Attributes, Get, Query};
+pub use nitroglycerin_derive::{Attributes, Key, Query};
 pub use rusoto_dynamodb as dynamodb;
 use thiserror::Error;
 
