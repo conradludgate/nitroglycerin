@@ -38,18 +38,26 @@
 //! let client = DynamoDbClient::new(Region::default());
 //!
 //! let employee: Option<Employee> = client.get::<Employee>()
-//!     .id("emp_1") // get the employee with id "emp_1"
-//!     .execute().await?;
+//!    .id("emp_1") // get the employee with id "emp_1"
+//!    .execute().await?;
+//!
+//! let new_employee = Employee {
+//!    id: "emp_1234".into(),
+//!    name: "Conrad".into(),
+//!    joined: 1626900000,
+//!    left: None,
+//! };
+//! // Put the new employee item into the db
+//! client.put(new_employee).execute().await?;
 //!
 //! let employees: Vec<EmployeeNameIndex> = client.query::<EmployeeNameIndex>()
-//!     .name("John".to_string()) // query all employees named "John"
-//!     .joined().between(1626649200, 1626735600) // who joined between 2021-07-19 and 2021-07-20
-//!     .execute().await?;
+//!    .name("John".to_string()) // query the db for all employees named "John"
+//!    .execute().await?;
 //!
 //! let employees: Vec<EmployeeNameIndex> = client.query::<EmployeeNameIndex>()
-//!     .name("John".to_string()) // query all employees named "John"
-//!     .joined().between(1626649200, 1626735600) // who joined between 2021-07-19 and 2021-07-20
-//!     .execute().await?;
+//!    .name("John".to_string()) // query the db for all employees named "John"
+//!    .joined().between(1626649200, 1626735600) // and who joined between 2021-07-19 and 2021-07-20
+//!    .execute().await?;
 //! ```
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
@@ -61,12 +69,12 @@ mod client;
 pub mod convert;
 /// collection of functions and types used to make get item requests
 mod get;
+/// collection of functions and types used to make key requests
+pub mod key;
 /// collection of functions and types used to make put item requests
 pub mod put;
 /// collection of functions and types used to make query requests
 pub mod query;
-/// collection of functions and types used to make key requests
-pub mod key;
 
 use std::{collections::HashMap, error::Error};
 

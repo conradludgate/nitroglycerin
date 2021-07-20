@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::{convert::IntoAttributeValue, Attributes, Table};
 
-/// Key type that can be built into GetItem requests
+/// Key type that can be built into `GetItem` requests
 pub struct Key {
     pub(crate) table_name: String,
     pub(crate) key: Attributes,

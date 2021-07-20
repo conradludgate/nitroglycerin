@@ -1,4 +1,4 @@
-use std::{convert::TryFrom};
+use std::convert::TryFrom;
 
 use rusoto_dynamodb::{GetItemError, GetItemInput};
 
@@ -7,11 +7,7 @@ use crate::{client::DynamoDb, key, AttributeError, Attributes, DynamoError};
 impl From<key::Key> for GetItemInput {
     fn from(k: key::Key) -> Self {
         let key::Key { table_name, key } = k;
-        GetItemInput {
-            table_name,
-            key,
-            ..GetItemInput::default()
-        }
+        Self { key, table_name, ..Self::default() }
     }
 }
 
