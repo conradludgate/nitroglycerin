@@ -4,7 +4,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 use syn::{parse_quote, Generics, Ident, Type, Visibility};
 
-use crate::{Column, NamedField, D};
+use crate::{Column, NamedField, D, DL};
 
 pub fn derive(vis: Visibility, name: syn::Ident, generics: syn::Generics, _attrs: Vec<syn::Attribute>, fields: syn::FieldsNamed) -> syn::Result<TokenStream> {
     let fields: Vec<_> = fields.named.into_iter().map(NamedField::try_from).collect::<syn::Result<_>>()?;
@@ -78,7 +78,8 @@ impl TraitBuilder {
         where_clause.predicates.push(parse_quote! {
             #R: ::std::convert::From<::nitroglycerin::key::Key>
         });
-        generics.params.push(parse_quote! { #D });
+        generics.params.push(parse_quote! { #DL });
+        generics.params.push(parse_quote! { #D: #DL + ?Sized });
         generics.params.push(parse_quote! { #R });
 
         Self { output, generics, generics2 }
@@ -94,10 +95,10 @@ impl ToTokens for TraitBuilder {
         let (_, ty_generics2, _) = generics2.split_for_impl();
 
         tokens.extend(quote! {
-            impl #impl_generics ::nitroglycerin::key::Builder<#D, #R> for #output #ty_generics2 #where_clause {
+            impl #impl_generics ::nitroglycerin::key::Builder<#DL, #D, #R> for #output #ty_generics2 #where_clause {
                 type Builder = #builder #ty_generics;
 
-                fn key(client: #D) -> Self::Builder {
+                fn key(client: &#DL #D) -> Self::Builder {
                     Self::Builder { client, _phantom: ::std::marker::PhantomData }
                 }
             }
@@ -127,7 +128,8 @@ impl KeyBuilder1 {
                 )*
             )
         };
-        generics.params.push(parse_quote! { #D });
+        generics.params.push(parse_quote! { #DL });
+        generics.params.push(parse_quote! { #D: #DL + ?Sized });
         generics.params.push(parse_quote! { #R });
 
         let where_clause = generics.make_where_clause();
@@ -170,7 +172,7 @@ impl ToTokens for KeyBuilder1 {
 
         tokens.extend(quote! {
             #vis struct #builder #impl_generics {
-                client: #D,
+                client: &#DL #D,
                 _phantom: ::std::marker::PhantomData<#phantom_data>,
             }
 
@@ -214,7 +216,8 @@ impl KeyBuilder2 {
                 )*
             )
         };
-        generics.params.push(parse_quote! { #D });
+        generics.params.push(parse_quote! { #DL });
+        generics.params.push(parse_quote! { #D: #DL + ?Sized });
         generics.params.push(parse_quote! { #R });
 
         let where_clause = generics.make_where_clause();
@@ -257,17 +260,17 @@ impl ToTokens for KeyBuilder2 {
                 ty: s_ty,
             }) => tokens.extend(quote! {
                 #vis struct #builder_p #impl_generics {
-                    client: #D,
+                    client: &#DL #D,
                     key: ::nitroglycerin::key::Key,
                     _phantom: ::std::marker::PhantomData<#phantom_data>,
                 }
 
                 impl #impl_generics #builder_p #ty_generics #where_clause {
-                    fn new(client: #D, key: ::nitroglycerin::key::Key) -> Self {
+                    fn new(client: &#DL #D, key: ::nitroglycerin::key::Key) -> Self {
                         Self { client, key, _phantom: ::std::marker::PhantomData }
                     }
 
-                    #vis fn #s_ident(self, #s_ident: impl ::std::convert::Into<#s_ty>) -> ::nitroglycerin::key::Expr<#D, #R, #output #ty_generics2>
+                    #vis fn #s_ident(self, #s_ident: impl ::std::convert::Into<#s_ty>) -> ::nitroglycerin::key::Expr<#DL, #D, #R, #output #ty_generics2>
                     where
                         #s_ty: ::nitroglycerin::convert::IntoAttributeValue,
                     {
@@ -281,7 +284,7 @@ impl ToTokens for KeyBuilder2 {
                 }
             }),
             None => tokens.extend(quote! {
-                #vis type #builder_p #ty_generics = ::nitroglycerin::key::Expr<#D, #R, #output #ty_generics2>;
+                #vis type #builder_p #ty_generics = ::nitroglycerin::key::Expr<#DL, #D, #R, #output #ty_generics2>;
             }),
         }
     }

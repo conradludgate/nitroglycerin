@@ -3,16 +3,16 @@ use rusoto_dynamodb::{PutItemError, PutItemInput};
 use crate::{Attributes, DynamoDb, DynamoError, Table};
 
 /// Trait that declares a type can be built into a put item request
-pub trait Put<D>: Table {
+pub trait Put<'d, D: 'd + ?Sized>: Table {
     /// The builder type that performs the put item request
     type Builder;
     /// Create the put item builder
-    fn put(self, client: D) -> Self::Builder;
+    fn put(self, client: &'d D) -> Self::Builder;
 }
 
-impl<D, T: Table + Into<Attributes>> Put<D> for T {
-    type Builder = Expr<D>;
-    fn put(self, client: D) -> Self::Builder {
+impl<'d, D: 'd + ?Sized, T: Table + Into<Attributes>> Put<'d, D> for T {
+    type Builder = Expr<'d, D>;
+    fn put(self, client: &'d D) -> Self::Builder {
         let input = PutItemInput {
             table_name: T::table_name(),
             item: self.into(),
@@ -24,21 +24,21 @@ impl<D, T: Table + Into<Attributes>> Put<D> for T {
 }
 
 /// Final output of a put item builder chain
-pub struct Expr<D> {
-    client: D,
+pub struct Expr<'d, D: 'd + ?Sized> {
+    client: &'d D,
     input: PutItemInput,
 }
 
-impl<D> Expr<D> {
+impl<'d, D: 'd + ?Sized> Expr<'d, D> {
     /// Create a new `Expr`
-    pub const fn new(client: D, input: PutItemInput) -> Self {
+    pub const fn new(client: &'d D, input: PutItemInput) -> Self {
         Self { client, input }
     }
 }
 
-impl<D> Expr<D>
+impl<'d, D: 'd + ?Sized> Expr<'d, D>
 where
-    D: DynamoDb + Send,
+    D: DynamoDb,
     for<'a> &'a D: Send,
 {
     /// Execute the put item request

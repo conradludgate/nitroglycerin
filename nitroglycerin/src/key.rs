@@ -24,27 +24,27 @@ impl Key {
 }
 
 /// Trait that declares a type can be built into a request key
-pub trait Builder<D, R: From<Key>>: Table {
+pub trait Builder<'d, D: 'd + ?Sized, R: From<Key>>: Table {
     /// The builder type that performs the get item request
     type Builder;
 
     /// Create the key builder
-    fn key(client: D) -> Self::Builder;
+    fn key(client: &'d D) -> Self::Builder;
 }
 
 /// Final output of a key builder chain
-pub struct Expr<D, Input, Table> {
-    pub(crate) client: D,
+pub struct Expr<'d, D: 'd + ?Sized, Input, Table> {
+    pub(crate) client: &'d D,
     pub(crate) input: Input,
     pub(crate) _phantom: PhantomData<Table>,
 }
 
-impl<D, Input, Table> Expr<D, Input, Table>
+impl<'d, D: 'd + ?Sized, Input, Table> Expr<'d, D, Input, Table>
 where
     Input: From<Key>,
 {
     /// Create a new `Expr`
-    pub fn new(client: D, key: Key) -> Self {
+    pub fn new(client: &'d D, key: Key) -> Self {
         let input = key.into();
         Self { client, input, _phantom: PhantomData }
     }

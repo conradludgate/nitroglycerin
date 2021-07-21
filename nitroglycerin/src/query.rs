@@ -17,30 +17,30 @@ pub fn new_input<I: TableIndex, K: IntoAttributeValue>(key_name: &str, key_value
 }
 
 /// Trait that declares a type can be built into a query request
-pub trait Query<D>: TableIndex {
+pub trait Query<'d, D: 'd + ?Sized>: TableIndex {
     /// The builder type that performs the query request
     type Builder;
 
     /// Create the query builder
-    fn query(client: D) -> Self::Builder;
+    fn query(client: &'d D) -> Self::Builder;
 }
 
 /// Sort key expression builder
-pub struct BuilderSort<D, SortKey, Index> {
-    client: D,
+pub struct BuilderSort<'d, D: 'd + ?Sized, SortKey, Index> {
+    client: &'d D,
     input: QueryInput,
     _phantom: PhantomData<(SortKey, Index)>,
 }
 
-impl<D, S, I> BuilderSort<D, S, I> {
+impl<'d, D: 'd + ?Sized, S, I> BuilderSort<'d, D, S, I> {
     /// Create a new `BuilderSort`
-    pub fn new(client: D, mut input: QueryInput, sort_key: &str) -> Self {
+    pub fn new(client: &'d D, mut input: QueryInput, sort_key: &str) -> Self {
         input.expression_attribute_names.as_mut().map(|n| n.insert("#1".to_owned(), sort_key.to_owned()));
         Self { client, input, _phantom: PhantomData }
     }
 }
 
-impl<D, S, I> BuilderSort<D, S, I>
+impl<'d, D: 'd + ?Sized, S, I> BuilderSort<'d, D, S, I>
 where
     S: IntoAttributeValue,
 {
@@ -54,48 +54,48 @@ where
             v.insert(key.to_owned(), sort.into_av());
         }
     }
-    fn build(self) -> Expr<D, I> {
+    fn build(self) -> Expr<'d, D, I> {
         let Self { client, input, _phantom } = self;
         Expr::new(client, input)
     }
 
     /// Query for sort key equal
-    pub fn equal(mut self, sort: impl Into<S>) -> Expr<D, I> {
+    pub fn equal(mut self, sort: impl Into<S>) -> Expr<'d, D, I> {
         self.push_expr("AND #1 = :1");
         self.push_value(":1", sort.into());
         self.build()
     }
 
     /// Query for sort key less than
-    pub fn less_than(mut self, sort: impl Into<S>) -> Expr<D, I> {
+    pub fn less_than(mut self, sort: impl Into<S>) -> Expr<'d, D, I> {
         self.push_expr("AND #1 < :1");
         self.push_value(":1", sort.into());
         self.build()
     }
 
     /// Query for sort key less than or equal
-    pub fn less_than_or_equal(mut self, sort: impl Into<S>) -> Expr<D, I> {
+    pub fn less_than_or_equal(mut self, sort: impl Into<S>) -> Expr<'d, D, I> {
         self.push_expr("AND #1 <= :1");
         self.push_value(":1", sort.into());
         self.build()
     }
 
     /// Query for sort key greater than
-    pub fn greater_than(mut self, sort: impl Into<S>) -> Expr<D, I> {
+    pub fn greater_than(mut self, sort: impl Into<S>) -> Expr<'d, D, I> {
         self.push_expr("AND #1 > :1");
         self.push_value(":1", sort.into());
         self.build()
     }
 
     /// Query for sort key greater than or equal
-    pub fn greater_than_or_equal(mut self, sort: impl Into<S>) -> Expr<D, I> {
+    pub fn greater_than_or_equal(mut self, sort: impl Into<S>) -> Expr<'d, D, I> {
         self.push_expr("AND #1 >= :1");
         self.push_value(":1", sort.into());
         self.build()
     }
 
     /// Query for sort key between
-    pub fn between(mut self, sort: RangeInclusive<impl Into<S>>) -> Expr<D, I> {
+    pub fn between(mut self, sort: RangeInclusive<impl Into<S>>) -> Expr<'d, D, I> {
         let (sort1, sort2) = sort.into_inner();
 
         self.push_expr("AND #1 BETWEEN :1 AND :2");
@@ -105,7 +105,7 @@ where
     }
 
     /// Query for sort key beginning with
-    pub fn begins_with(mut self, sort: impl Into<S>) -> Expr<D, I> {
+    pub fn begins_with(mut self, sort: impl Into<S>) -> Expr<'d, D, I> {
         self.push_expr("AND begins_with(#1, :1)");
         self.push_value(":1", sort.into());
         self.build()
@@ -113,15 +113,15 @@ where
 }
 
 /// Final output of a query builder chain
-pub struct Expr<D, Index> {
-    client: D,
+pub struct Expr<'d, D: 'd + ?Sized, Index> {
+    client: &'d D,
     input: QueryInput,
     _phantom: PhantomData<Index>,
 }
 
-impl<D, I> Expr<D, I> {
+impl<'d, D: 'd + ?Sized, I> Expr<'d, D, I> {
     /// Create a new `Expr`
-    pub const fn new(client: D, input: QueryInput) -> Self {
+    pub const fn new(client: &'d D, input: QueryInput) -> Self {
         Self { client, input, _phantom: PhantomData }
     }
 
@@ -132,10 +132,10 @@ impl<D, I> Expr<D, I> {
     }
 }
 
-impl<D, I> Expr<D, I>
+impl<'d, D: 'd + ?Sized, I> Expr<'d, D, I>
 where
-    D: DynamoDb + Send,
-    for<'a> &'a D: Send,
+    D: DynamoDb,
+    &'d D: Send,
     I: TryFrom<Attributes, Error = AttributeError> + Send,
 {
     /// Execute the query request

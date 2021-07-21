@@ -65,6 +65,19 @@ impl quote::ToTokens for D {
     }
 }
 
+#[derive(Clone, Copy)]
+struct DL;
+impl From<DL> for syn::Lifetime {
+    fn from(_: DL) -> Self {
+        parse_quote!('__nitroglycerin_dynamo_db_dlient)
+    }
+}
+impl quote::ToTokens for DL {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        syn::Lifetime::from(*self).to_tokens(tokens);
+    }
+}
+
 #[derive(Clone)]
 struct NamedField {
     pub attrs: FieldAttr,

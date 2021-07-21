@@ -2,7 +2,23 @@ use std::convert::TryFrom;
 
 use rusoto_dynamodb::{GetItemError, GetItemInput};
 
-use crate::{client::DynamoDb, key, AttributeError, Attributes, DynamoError};
+use crate::{AttributeError, Attributes, DynamoError, Table, client::DynamoDb, key};
+
+/// Trait that declares a type can be built into a get item request
+pub trait Get<'d, D: ?Sized>: Table {
+    /// The builder type that performs the get item request
+    type Builder;
+
+    /// Create the get builder
+    fn get(client: &'d D) -> Self::Builder;
+}
+
+impl<'d, D: 'd + ?Sized, K: key::Builder<'d, D, GetItemInput>> Get<'d, D> for K {
+    type Builder = K::Builder;
+    fn get(client: &'d D) -> Self::Builder {
+        K::key(client)
+    }
+}
 
 impl From<key::Key> for GetItemInput {
     fn from(k: key::Key) -> Self {
@@ -11,7 +27,7 @@ impl From<key::Key> for GetItemInput {
     }
 }
 
-impl<D, T> key::Expr<D, GetItemInput, T> {
+impl<'d, D: 'd + ?Sized, T> key::Expr<'d, D, GetItemInput, T> {
     /// Enable consistent read for the get item request
     pub const fn consistent_read(mut self) -> Self {
         self.input.consistent_read = Some(true);
@@ -19,10 +35,10 @@ impl<D, T> key::Expr<D, GetItemInput, T> {
     }
 }
 
-impl<D, T> key::Expr<D, GetItemInput, T>
+impl<'d, D: 'd + ?Sized, T> key::Expr<'d, D, GetItemInput, T>
 where
-    D: DynamoDb + Send,
-    for<'a> &'a D: Send,
+    D: DynamoDb,
+    &'d D: Send,
     T: TryFrom<Attributes, Error = AttributeError> + Send,
 {
     /// Execute the get item request

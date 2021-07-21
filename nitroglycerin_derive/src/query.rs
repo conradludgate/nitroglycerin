@@ -4,7 +4,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 use syn::{parse_quote, Generics, Ident, Type, Visibility};
 
-use crate::{Column, NamedField, D};
+use crate::{Column, NamedField, D, DL};
 
 pub fn derive(vis: Visibility, name: syn::Ident, generics: syn::Generics, _attrs: Vec<syn::Attribute>, fields: syn::FieldsNamed) -> syn::Result<TokenStream> {
     let fields: Vec<_> = fields.named.into_iter().map(NamedField::try_from).collect::<syn::Result<_>>()?;
@@ -61,7 +61,8 @@ impl TraitBuilder {
         generics.make_where_clause().predicates.push(parse_quote! {
             Self:  ::nitroglycerin::TableIndex
         });
-        generics.params.push(parse_quote! { #D });
+        generics.params.push(parse_quote! { #DL });
+        generics.params.push(parse_quote! { #D: #DL + ?Sized });
 
         Self { output, generics, generics2 }
     }
@@ -76,10 +77,10 @@ impl ToTokens for TraitBuilder {
         let (_, ty_generics2, _) = generics2.split_for_impl();
 
         tokens.extend(quote! {
-            impl #impl_generics ::nitroglycerin::query::Query<#D> for #output #ty_generics2 #where_clause {
+            impl #impl_generics ::nitroglycerin::query::Query<#DL, #D> for #output #ty_generics2 #where_clause {
                 type Builder = #builder #ty_generics;
 
-                fn query(client: #D) -> Self::Builder {
+                fn query(client: &#DL #D) -> Self::Builder {
                     Self::Builder { client, _phantom: ::std::marker::PhantomData }
                 }
             }
@@ -109,7 +110,8 @@ impl QueryBuilder1 {
             )
         };
 
-        generics.params.push(parse_quote! { #D });
+        generics.params.push(parse_quote! { #DL });
+        generics.params.push(parse_quote! { #D: #DL + ?Sized });
 
         Self {
             vis,
@@ -146,7 +148,7 @@ impl ToTokens for QueryBuilder1 {
 
         tokens.extend(quote! {
             #vis struct #builder #impl_generics {
-                client: #D,
+                client: &#DL #D,
                 _phantom: ::std::marker::PhantomData<#phantom_data>,
             }
 
@@ -189,7 +191,8 @@ impl QueryBuilder2 {
                 )*
             )
         };
-        generics.params.push(parse_quote! { #D });
+        generics.params.push(parse_quote! { #DL });
+        generics.params.push(parse_quote! { #D: #DL + ?Sized });
 
         Self {
             vis,
@@ -226,30 +229,30 @@ impl ToTokens for QueryBuilder2 {
                 ty: s_ty,
             }) => tokens.extend(quote! {
                 #vis struct #builder_p #impl_generics {
-                    client: #D,
+                    client: &#DL #D,
                     input: ::nitroglycerin::dynamodb::QueryInput,
                     _phantom: ::std::marker::PhantomData<#phantom_data>,
                 }
 
                 impl #impl_generics #builder_p #ty_generics #where_clause {
-                    fn new(client: #D, input: ::nitroglycerin::dynamodb::QueryInput) -> Self {
+                    fn new(client: &#DL #D, input: ::nitroglycerin::dynamodb::QueryInput) -> Self {
                         Self { client, input, _phantom: ::std::marker::PhantomData }
                     }
 
-                    #vis fn #s_ident(self) -> ::nitroglycerin::query::BuilderSort<#D, #s_ty, #output #ty_generics2> {
+                    #vis fn #s_ident(self) -> ::nitroglycerin::query::BuilderSort<#DL, #D, #s_ty, #output #ty_generics2> {
                         let Self { client, input, _phantom } = self;
                         ::nitroglycerin::query::BuilderSort::new(client, input, #s_name)
                     }
 
-                    #vis fn consistent_read(self) -> ::nitroglycerin::query::Expr<#D, #output #ty_generics2> {
+                    #vis fn consistent_read(self) -> ::nitroglycerin::query::Expr<#DL, #D, #output #ty_generics2> {
                         let Self { client, input, _phantom } = self;
                         ::nitroglycerin::query::Expr::new(client, input).consistent_read()
                     }
 
                     #vis async fn execute(self) -> ::std::result::Result<::std::vec::Vec<#output #ty_generics2>, ::nitroglycerin::DynamoError<::nitroglycerin::dynamodb::QueryError>>
                     where
-                        #D: ::nitroglycerin::dynamodb::DynamoDb + ::std::marker::Send,
-                        for<'d> &'d #D: ::nitroglycerin::dynamodb::DynamoDb + ::std::marker::Send,
+                        #D: ::nitroglycerin::dynamodb::DynamoDb,
+                        &#DL #D: ::std::marker::Send,
                         #output #ty_generics2: ::std::convert::TryFrom<::nitroglycerin::Attributes, Error = ::nitroglycerin::AttributeError> + ::std::marker::Send,
                     {
                         let Self { client, input, _phantom } = self;
@@ -258,7 +261,7 @@ impl ToTokens for QueryBuilder2 {
                 }
             }),
             None => tokens.extend(quote! {
-                #vis type #builder_p #ty_generics = ::nitroglycerin::query::Expr<#D, #output #ty_generics2>;
+                #vis type #builder_p #ty_generics = ::nitroglycerin::query::Expr<#DL, #D, #output #ty_generics2>;
             }),
         }
     }
