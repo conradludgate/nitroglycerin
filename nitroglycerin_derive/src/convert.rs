@@ -9,24 +9,24 @@ use crate::{Column, NamedField};
 pub fn derive(_vis: syn::Visibility, name: syn::Ident, generics: syn::Generics, _attrs: Vec<syn::Attribute>, fields: syn::FieldsNamed) -> syn::Result<TokenStream> {
     let fields: Vec<_> = fields.named.into_iter().map(NamedField::try_from).collect::<syn::Result<_>>()?;
     let columns: Vec<_> = fields.into_iter().map(Column::from).collect();
-    Ok(ConvertBuilder::new(name, generics, columns).to_token_stream())
+    Ok(ConvertBuilder::new(&name, &generics, &columns).to_token_stream())
 }
 
-struct ConvertBuilder {
-    from: FromBuilder,
-    into: IntoBuilder,
+struct ConvertBuilder<'a> {
+    from: FromBuilder<'a>,
+    into: IntoBuilder<'a>,
 }
 
-impl ConvertBuilder {
-    fn new(ident: Ident, generics: Generics, columns: Vec<Column>) -> Self {
+impl<'a> ConvertBuilder<'a> {
+    fn new(ident: &'a Ident, generics: &'a Generics, columns: &'a [Column]) -> Self {
         Self {
-            from: FromBuilder::new(ident.clone(), generics.clone(), columns.clone()),
+            from: FromBuilder::new(ident, generics, columns),
             into: IntoBuilder::new(ident, generics, columns),
         }
     }
 }
 
-impl ToTokens for ConvertBuilder {
+impl<'a> ToTokens for ConvertBuilder<'a> {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         let Self { from, into } = self;
         from.to_tokens(tokens);
@@ -34,17 +34,18 @@ impl ToTokens for ConvertBuilder {
     }
 }
 
-struct IntoBuilder {
-    pub ident: Ident,
+struct IntoBuilder<'a> {
+    pub ident: &'a Ident,
     pub generics: Generics,
-    pub columns: Vec<Column>,
+    pub columns: &'a [Column],
 }
 
-impl IntoBuilder {
-    fn new(ident: Ident, mut generics: Generics, columns: Vec<Column>) -> Self {
+impl<'a> IntoBuilder<'a> {
+    fn new(ident: &'a Ident, generics: &'a Generics, columns: &'a [Column]) -> Self {
+        let mut generics = generics.clone();
         let where_clause = generics.make_where_clause();
 
-        for column in &columns {
+        for column in columns {
             let ty = &column.ty;
             where_clause.predicates.push(parse_quote! {
                 #ty: ::nitroglycerin::convert::IntoAttributeValue
@@ -55,7 +56,7 @@ impl IntoBuilder {
     }
 }
 
-impl ToTokens for IntoBuilder {
+impl<'a> ToTokens for IntoBuilder<'a> {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         let Self { ident, generics, columns } = self;
 
@@ -89,17 +90,18 @@ impl ToTokens for IntoBuilder {
     }
 }
 
-struct FromBuilder {
-    pub ident: Ident,
+struct FromBuilder<'a> {
+    pub ident: &'a Ident,
     pub generics: Generics,
-    pub columns: Vec<Column>,
+    pub columns: &'a [Column],
 }
 
-impl FromBuilder {
-    fn new(ident: Ident, mut generics: Generics, columns: Vec<Column>) -> Self {
+impl<'a> FromBuilder<'a> {
+    fn new(ident: &'a Ident, generics: &'a Generics, columns: &'a [Column]) -> Self {
+        let mut generics = generics.clone();
         let where_clause = generics.make_where_clause();
 
-        for column in &columns {
+        for column in columns {
             let ty = &column.ty;
             where_clause.predicates.push(parse_quote! {
                 #ty: ::nitroglycerin::convert::FromAttributeValue
@@ -110,7 +112,7 @@ impl FromBuilder {
     }
 }
 
-impl ToTokens for FromBuilder {
+impl<'a> ToTokens for FromBuilder<'a> {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         let Self { ident, generics, columns } = self;
 

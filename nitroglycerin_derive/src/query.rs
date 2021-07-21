@@ -16,26 +16,26 @@ pub fn derive(vis: Visibility, name: syn::Ident, generics: syn::Generics, _attrs
 
     let sort_key = fields.iter().find_map(|f| f.attrs.sort_key.map(|_| f.clone().into()));
 
-    Ok(QueryBuilder::new(vis, name, generics, partition_key, sort_key).to_token_stream())
+    Ok(QueryBuilder::new(&vis, &name, &generics, partition_key, sort_key).to_token_stream())
 }
 
-struct QueryBuilder {
-    trait_builder: TraitBuilder,
-    query_builder1: QueryBuilder1,
-    query_builder2: QueryBuilder2,
+struct QueryBuilder<'a> {
+    trait_builder: TraitBuilder<'a>,
+    query_builder1: QueryBuilder1<'a>,
+    query_builder2: QueryBuilder2<'a>,
 }
 
-impl QueryBuilder {
-    fn new(vis: Visibility, output: Ident, generics: Generics, partition_key: Column, sort_key: Option<Column>) -> Self {
+impl<'a> QueryBuilder<'a> {
+    fn new(vis: &'a Visibility, output: &'a Ident, generics: &'a Generics, partition_key: Column, sort_key: Option<Column>) -> Self {
         Self {
-            trait_builder: TraitBuilder::new(output.clone(), generics.clone()),
-            query_builder1: QueryBuilder1::new(vis.clone(), output.clone(), generics.clone(), partition_key),
+            trait_builder: TraitBuilder::new(output, generics),
+            query_builder1: QueryBuilder1::new(vis, output, generics, partition_key),
             query_builder2: QueryBuilder2::new(vis, output, generics, sort_key),
         }
     }
 }
 
-impl ToTokens for QueryBuilder {
+impl<'a> ToTokens for QueryBuilder<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self {
             trait_builder,
@@ -48,33 +48,33 @@ impl ToTokens for QueryBuilder {
     }
 }
 
-struct TraitBuilder {
-    output: Ident,
-    generics: Generics,
-    generics2: Generics,
+struct TraitBuilder<'a> {
+    output: &'a Ident,
+    generics: &'a Generics,
+    new_generics: Generics,
 }
 
-impl TraitBuilder {
-    fn new(output: Ident, mut generics: Generics) -> Self {
-        let generics2 = generics.clone();
+impl<'a> TraitBuilder<'a> {
+    fn new(output: &'a Ident, generics: &'a Generics) -> Self {
+        let mut new_generics = generics.clone();
 
-        generics.make_where_clause().predicates.push(parse_quote! {
+        new_generics.make_where_clause().predicates.push(parse_quote! {
             Self:  ::nitroglycerin::TableIndex
         });
-        generics.params.push(parse_quote! { #DL });
-        generics.params.push(parse_quote! { #D: #DL + ?Sized });
+        new_generics.params.push(parse_quote! { #DL });
+        new_generics.params.push(parse_quote! { #D: #DL + ?Sized });
 
-        Self { output, generics, generics2 }
+        Self { output, generics, new_generics }
     }
 }
 
-impl ToTokens for TraitBuilder {
+impl<'a> ToTokens for TraitBuilder<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let Self { output, generics, generics2 } = self;
+        let Self { output, generics, new_generics } = self;
         let builder = format_ident!("{}QueryBuilder", output);
 
-        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-        let (_, ty_generics2, _) = generics2.split_for_impl();
+        let (impl_generics, ty_generics, where_clause) = new_generics.split_for_impl();
+        let (_, ty_generics2, _) = generics.split_for_impl();
 
         tokens.extend(quote! {
             impl #impl_generics ::nitroglycerin::query::Query<#DL, #D> for #output #ty_generics2 #where_clause {
@@ -88,20 +88,20 @@ impl ToTokens for TraitBuilder {
     }
 }
 
-struct QueryBuilder1 {
-    vis: Visibility,
-    output: Ident,
-    generics: Generics,
-    generics2: Generics,
+struct QueryBuilder1<'a> {
+    vis: &'a Visibility,
+    output: &'a Ident,
+    generics: &'a Generics,
+    new_generics: Generics,
     phantom_data: Type,
     partition_key: Column,
 }
 
-impl QueryBuilder1 {
-    fn new(vis: Visibility, output: Ident, mut generics: Generics, partition_key: Column) -> Self {
-        let generics2 = generics.clone();
+impl<'a> QueryBuilder1<'a> {
+    fn new(vis: &'a Visibility, output: &'a Ident, generics: &'a Generics, partition_key: Column) -> Self {
+        let mut new_generics = generics.clone();
 
-        let tys = generics.type_params().map(|tp| &tp.ident);
+        let tys = new_generics.type_params().map(|tp| &tp.ident);
         let phantom_data = parse_quote! {
             (
                 #(
@@ -110,27 +110,27 @@ impl QueryBuilder1 {
             )
         };
 
-        generics.params.push(parse_quote! { #DL });
-        generics.params.push(parse_quote! { #D: #DL + ?Sized });
+        new_generics.params.push(parse_quote! { #DL });
+        new_generics.params.push(parse_quote! { #D: #DL + ?Sized });
 
         Self {
             vis,
             output,
             generics,
-            generics2,
+            new_generics,
             phantom_data,
             partition_key,
         }
     }
 }
 
-impl ToTokens for QueryBuilder1 {
+impl<'a> ToTokens for QueryBuilder1<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self {
             vis,
             output,
             generics,
-            generics2,
+            new_generics,
             phantom_data,
             partition_key,
         } = self;
@@ -143,8 +143,8 @@ impl ToTokens for QueryBuilder1 {
             ty: p_ty,
         } = partition_key;
 
-        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-        let (_, ty_generics2, _) = generics2.split_for_impl();
+        let (impl_generics, ty_generics, where_clause) = new_generics.split_for_impl();
+        let (_, ty_generics2, _) = generics.split_for_impl();
 
         tokens.extend(quote! {
             #vis struct #builder #impl_generics {
@@ -170,20 +170,20 @@ impl ToTokens for QueryBuilder1 {
     }
 }
 
-struct QueryBuilder2 {
-    vis: Visibility,
-    output: Ident,
-    generics: Generics,
-    generics2: Generics,
+struct QueryBuilder2<'a> {
+    vis: &'a Visibility,
+    output: &'a Ident,
+    generics: &'a Generics,
+    new_generics: Generics,
     phantom_data: Type,
     sort_key: Option<Column>,
 }
 
-impl QueryBuilder2 {
-    fn new(vis: Visibility, output: Ident, mut generics: Generics, sort_key: Option<Column>) -> Self {
-        let generics2 = generics.clone();
+impl<'a> QueryBuilder2<'a> {
+    fn new(vis: &'a Visibility, output: &'a Ident, generics: &'a Generics, sort_key: Option<Column>) -> Self {
+        let mut new_generics = generics.clone();
 
-        let tys = generics.type_params().map(|tp| &tp.ident);
+        let tys = new_generics.type_params().map(|tp| &tp.ident);
         let phantom_data = parse_quote! {
             (
                 #(
@@ -191,36 +191,36 @@ impl QueryBuilder2 {
                 )*
             )
         };
-        generics.params.push(parse_quote! { #DL });
-        generics.params.push(parse_quote! { #D: #DL + ?Sized });
+        new_generics.params.push(parse_quote! { #DL });
+        new_generics.params.push(parse_quote! { #D: #DL + ?Sized });
 
         Self {
             vis,
             output,
             generics,
-            generics2,
+            new_generics,
             phantom_data,
             sort_key,
         }
     }
 }
 
-impl ToTokens for QueryBuilder2 {
+impl<'a> ToTokens for QueryBuilder2<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self {
             vis,
             output,
             sort_key,
             generics,
-            generics2,
+            new_generics,
             phantom_data,
         } = self;
 
         let builder = format_ident!("{}QueryBuilder", output);
         let builder_p = format_ident!("{}Partition", builder);
 
-        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-        let (_, ty_generics2, _) = generics2.split_for_impl();
+        let (impl_generics, ty_generics, where_clause) = new_generics.split_for_impl();
+        let (_, ty_generics2, _) = generics.split_for_impl();
 
         match sort_key {
             Some(Column {

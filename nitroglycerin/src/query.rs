@@ -126,6 +126,7 @@ impl<'d, D: 'd + ?Sized, I> Expr<'d, D, I> {
     }
 
     /// Enable consistent read for the query request
+    #[must_use]
     pub const fn consistent_read(mut self) -> Self {
         self.input.consistent_read = Some(true);
         self

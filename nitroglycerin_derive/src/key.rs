@@ -16,7 +16,7 @@ pub fn derive(vis: Visibility, name: syn::Ident, generics: syn::Generics, _attrs
 
     let sort_key = fields.iter().find_map(|f| f.attrs.sort_key.map(|_| f.clone().into()));
 
-    Ok(KeyBuilder::new(vis, name, generics, partition_key, sort_key).to_token_stream())
+    Ok(KeyBuilder::new(&vis, &name, &generics, partition_key, sort_key).to_token_stream())
 }
 
 #[derive(Clone, Copy)]
@@ -32,23 +32,23 @@ impl quote::ToTokens for R {
     }
 }
 
-struct KeyBuilder {
-    trait_builder: TraitBuilder,
-    key_builder1: KeyBuilder1,
-    key_builder2: KeyBuilder2,
+struct KeyBuilder<'a> {
+    trait_builder: TraitBuilder<'a>,
+    key_builder1: KeyBuilder1<'a>,
+    key_builder2: KeyBuilder2<'a>,
 }
 
-impl KeyBuilder {
-    pub fn new(vis: Visibility, output: Ident, generics: Generics, partition_key: Column, sort_key: Option<Column>) -> Self {
+impl<'a> KeyBuilder<'a> {
+    pub fn new(vis: &'a Visibility, output: &'a Ident, generics: &'a Generics, partition_key: Column, sort_key: Option<Column>) -> Self {
         Self {
-            trait_builder: TraitBuilder::new(output.clone(), generics.clone()),
-            key_builder1: KeyBuilder1::new(vis.clone(), output.clone(), generics.clone(), partition_key),
+            trait_builder: TraitBuilder::new(output, generics),
+            key_builder1: KeyBuilder1::new(vis, output, generics, partition_key),
             key_builder2: KeyBuilder2::new(vis, output, generics, sort_key),
         }
     }
 }
 
-impl ToTokens for KeyBuilder {
+impl<'a> ToTokens for KeyBuilder<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self {
             trait_builder,
@@ -61,38 +61,38 @@ impl ToTokens for KeyBuilder {
     }
 }
 
-struct TraitBuilder {
-    output: Ident,
-    generics: Generics,
-    generics2: Generics,
+struct TraitBuilder<'a> {
+    output: &'a Ident,
+    generics: &'a Generics,
+    new_generics: Generics,
 }
 
-impl TraitBuilder {
-    fn new(output: Ident, mut generics: Generics) -> Self {
-        let generics2 = generics.clone();
+impl<'a> TraitBuilder<'a> {
+    fn new(output: &'a Ident, generics: &'a Generics) -> Self {
+        let mut new_generics = generics.clone();
 
-        let where_clause = generics.make_where_clause();
+        let where_clause = new_generics.make_where_clause();
         where_clause.predicates.push(parse_quote! {
             Self: ::nitroglycerin::Table
         });
         where_clause.predicates.push(parse_quote! {
             #R: ::std::convert::From<::nitroglycerin::key::Key>
         });
-        generics.params.push(parse_quote! { #DL });
-        generics.params.push(parse_quote! { #D: #DL + ?Sized });
-        generics.params.push(parse_quote! { #R });
+        new_generics.params.push(parse_quote! { #DL });
+        new_generics.params.push(parse_quote! { #D: #DL + ?Sized });
+        new_generics.params.push(parse_quote! { #R });
 
-        Self { output, generics, generics2 }
+        Self { output, generics, new_generics }
     }
 }
 
-impl ToTokens for TraitBuilder {
+impl<'a> ToTokens for TraitBuilder<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let Self { output, generics, generics2 } = self;
+        let Self { output, generics, new_generics } = self;
         let builder = format_ident!("{}KeyBuilder", output);
 
-        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-        let (_, ty_generics2, _) = generics2.split_for_impl();
+        let (impl_generics, ty_generics, where_clause) = new_generics.split_for_impl();
+        let (_, ty_generics2, _) = generics.split_for_impl();
 
         tokens.extend(quote! {
             impl #impl_generics ::nitroglycerin::key::Builder<#DL, #D, #R> for #output #ty_generics2 #where_clause {
@@ -106,20 +106,20 @@ impl ToTokens for TraitBuilder {
     }
 }
 
-struct KeyBuilder1 {
-    vis: Visibility,
-    output: Ident,
-    generics: Generics,
-    generics2: Generics,
+struct KeyBuilder1<'a> {
+    vis: &'a Visibility,
+    output: &'a Ident,
+    generics: &'a Generics,
+    new_generics: Generics,
     phantom_data: Type,
     partition_key: Column,
 }
 
-impl KeyBuilder1 {
-    fn new(vis: Visibility, output: Ident, mut generics: Generics, partition_key: Column) -> Self {
-        let generics2 = generics.clone();
+impl<'a> KeyBuilder1<'a> {
+    fn new(vis: &'a Visibility, output: &'a Ident, generics: &'a Generics, partition_key: Column) -> Self {
+        let mut new_generics = generics.clone();
 
-        let tys = generics.type_params().map(|tp| &tp.ident);
+        let tys = new_generics.type_params().map(|tp| &tp.ident);
         let phantom_data = parse_quote! {
             (
                 #R,
@@ -128,11 +128,11 @@ impl KeyBuilder1 {
                 )*
             )
         };
-        generics.params.push(parse_quote! { #DL });
-        generics.params.push(parse_quote! { #D: #DL + ?Sized });
-        generics.params.push(parse_quote! { #R });
+        new_generics.params.push(parse_quote! { #DL });
+        new_generics.params.push(parse_quote! { #D: #DL + ?Sized });
+        new_generics.params.push(parse_quote! { #R });
 
-        let where_clause = generics.make_where_clause();
+        let where_clause = new_generics.make_where_clause();
         where_clause.predicates.push(parse_quote! {
             #R: ::std::convert::From<::nitroglycerin::key::Key>
         });
@@ -141,20 +141,20 @@ impl KeyBuilder1 {
             vis,
             output,
             generics,
-            generics2,
+            new_generics,
             phantom_data,
             partition_key,
         }
     }
 }
 
-impl ToTokens for KeyBuilder1 {
+impl<'a> ToTokens for KeyBuilder1<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self {
             vis,
             output,
             generics,
-            generics2,
+            new_generics,
             phantom_data,
             partition_key,
         } = self;
@@ -167,8 +167,8 @@ impl ToTokens for KeyBuilder1 {
             ty: p_ty,
         } = partition_key;
 
-        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-        let (_, ty_generics2, _) = generics2.split_for_impl();
+        let (impl_generics, ty_generics, where_clause) = new_generics.split_for_impl();
+        let (_, ty_generics2, _) = generics.split_for_impl();
 
         tokens.extend(quote! {
             #vis struct #builder #impl_generics {
@@ -194,20 +194,20 @@ impl ToTokens for KeyBuilder1 {
     }
 }
 
-struct KeyBuilder2 {
-    vis: Visibility,
-    output: Ident,
-    generics: Generics,
-    generics2: Generics,
+struct KeyBuilder2<'a> {
+    vis: &'a Visibility,
+    output: &'a Ident,
+    generics: &'a Generics,
+    new_generics: Generics,
     phantom_data: Type,
     sort_key: Option<Column>,
 }
 
-impl KeyBuilder2 {
-    fn new(vis: Visibility, output: Ident, mut generics: Generics, sort_key: Option<Column>) -> Self {
-        let generics2 = generics.clone();
+impl<'a> KeyBuilder2<'a> {
+    fn new(vis: &'a Visibility, output: &'a Ident, generics: &'a Generics, sort_key: Option<Column>) -> Self {
+        let mut new_generics = generics.clone();
 
-        let tys = generics.type_params().map(|tp| &tp.ident);
+        let tys = new_generics.type_params().map(|tp| &tp.ident);
         let phantom_data = parse_quote! {
             (
                 #R,
@@ -216,11 +216,11 @@ impl KeyBuilder2 {
                 )*
             )
         };
-        generics.params.push(parse_quote! { #DL });
-        generics.params.push(parse_quote! { #D: #DL + ?Sized });
-        generics.params.push(parse_quote! { #R });
+        new_generics.params.push(parse_quote! { #DL });
+        new_generics.params.push(parse_quote! { #D: #DL + ?Sized });
+        new_generics.params.push(parse_quote! { #R });
 
-        let where_clause = generics.make_where_clause();
+        let where_clause = new_generics.make_where_clause();
         where_clause.predicates.push(parse_quote! {
             #R: ::std::convert::From<::nitroglycerin::key::Key>
         });
@@ -229,29 +229,29 @@ impl KeyBuilder2 {
             vis,
             output,
             generics,
-            generics2,
+            new_generics,
             phantom_data,
             sort_key,
         }
     }
 }
 
-impl ToTokens for KeyBuilder2 {
+impl<'a> ToTokens for KeyBuilder2<'a> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Self {
             vis,
             output,
             sort_key,
             generics,
-            generics2,
+            new_generics,
             phantom_data,
         } = self;
 
         let builder = format_ident!("{}KeyBuilder", output);
         let builder_p = format_ident!("{}Partition", builder);
 
-        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-        let (_, ty_generics2, _) = generics2.split_for_impl();
+        let (impl_generics, ty_generics, where_clause) = new_generics.split_for_impl();
+        let (_, ty_generics2, _) = generics.split_for_impl();
 
         match sort_key {
             Some(Column {

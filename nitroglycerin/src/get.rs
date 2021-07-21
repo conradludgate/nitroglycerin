@@ -29,6 +29,7 @@ impl From<key::Key> for GetItemInput {
 
 impl<'d, D: 'd + ?Sized, T> key::Expr<'d, D, GetItemInput, T> {
     /// Enable consistent read for the get item request
+    #[must_use]
     pub const fn consistent_read(mut self) -> Self {
         self.input.consistent_read = Some(true);
         self
