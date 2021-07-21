@@ -1,29 +1,94 @@
+//! High level dynamodb crate
+//!
+//! ```ignore
+//! use nitroglycerin::{Attributes, Key, Query, Table, DynamoDb, dynamodb::DynamoDbClient};
+//! use rusoto_core::Region;
+//!
+//! #[derive(Debug, PartialEq, Attributes, Key, Query)]
+//! struct Employee {
+//!     #[nitro(partition_key)]
+//!     id: String,
+//!     #[nitro(rename = "firstName")]
+//!     name: String,
+//!     joined: i64,
+//!     left: Option<i64>,
+//! }
+//!
+//! impl Table for Employee {
+//!     fn table_name() -> String {
+//!         "Employees".to_string()
+//!     }
+//! }
+//!
+//! #[derive(Debug, PartialEq, Attributes, Query)]
+//! struct EmployeeNameIndex {
+//!     #[nitro(partition_key, rename = "firstName")]
+//!     name: String,
+//!     #[nitro(sort_key)]
+//!     joined: i64,
+//! }
+//!
+//! impl IndexTable for EmployeeNameIndex {
+//!     type Table = Employees;
+//!     fn index_name() -> Option<String> {
+//!         Some("EmployeeNamesIndex".to_string())
+//!     }
+//! }
+//!
+//! let client = DynamoDbClient::new(Region::default());
+//!
+//! let employee: Option<Employee> = client.get::<Employee>()
+//!    .id("emp_1") // get the employee with id "emp_1"
+//!    .execute().await?;
+//!
+//! let new_employee = Employee {
+//!    id: "emp_1234".into(),
+//!    name: "Conrad".into(),
+//!    joined: 1626900000,
+//!    left: None,
+//! };
+//! // Put the new employee item into the db
+//! client.put(new_employee).execute().await?;
+//!
+//! let employees: Vec<EmployeeNameIndex> = client.query::<EmployeeNameIndex>()
+//!    .name("John") // query the db for all employees named "John"
+//!    .execute().await?;
+//!
+//! let employees: Vec<EmployeeNameIndex> = client.query::<EmployeeNameIndex>()
+//!    .name("John") // query the db for all employees named "John"
+//!    .joined().between(1626649200, 1626735600) // and who joined between 2021-07-19 and 2021-07-20
+//!    .execute().await?;
+//! ```
+
+#![warn(clippy::pedantic)]
+#![warn(clippy::nursery)]
+#![deny(missing_docs)]
+
 use std::convert::TryFrom;
 
-use attr::FieldAttr;
+use attr::field;
 use proc_macro::TokenStream;
-use quote::ToTokens;
 use syn::{parse_macro_input, parse_quote, spanned::Spanned, DeriveInput};
-
-#[macro_use]
-extern crate derive_builder;
 
 mod attr;
 mod convert;
 mod key;
 mod query;
-mod split_by;
+mod iter;
 
-type Parser = fn(vis: syn::Visibility, name: syn::Ident, generics: syn::Generics, attrs: Vec<syn::Attribute>, fields: syn::FieldsNamed) -> syn::Result<proc_macro2::TokenStream>;
-fn derive(input: TokenStream, parser: Parser) -> TokenStream {
+trait Builder {
+    fn parse(vis: syn::Visibility, name: syn::Ident, generics: syn::Generics, attrs: Vec<syn::Attribute>, fields: syn::FieldsNamed) -> syn::Result<proc_macro2::TokenStream>;
+}
+
+fn derive<P: Builder>(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let span = input.span();
     let DeriveInput { attrs, vis, ident, generics, data } = input;
 
     match data {
         syn::Data::Struct(s) => match s.fields {
-            syn::Fields::Named(fields) => match parser(vis, ident, generics, attrs, fields) {
-                Ok(t) => t.into_token_stream(),
+            syn::Fields::Named(fields) => match P::parse(vis, ident, generics, attrs, fields) {
+                Ok(t) => t,
                 Err(e) => e.to_compile_error(),
             },
             syn::Fields::Unnamed(_) => syn::Error::new(span, "tuple structs not supported").into_compile_error(),
@@ -38,18 +103,19 @@ fn derive(input: TokenStream, parser: Parser) -> TokenStream {
 /// Implement a strongly typed key builder. This is used to setup get requests
 #[proc_macro_derive(Key, attributes(nitro))]
 pub fn derive_key(input: TokenStream) -> TokenStream {
-    derive(input, key::derive)
+    derive::<key::Builder>(input)
 }
 
 /// Implement a strongly typed query builder. This is used to setup query requests
 #[proc_macro_derive(Query, attributes(nitro))]
 pub fn derive_query(input: TokenStream) -> TokenStream {
-    derive(input, query::derive)
+    derive::<query::Builder>(input)
 }
 
+/// Implement `Into<Attributes>` and `TryFrom<Attributes>`
 #[proc_macro_derive(Attributes, attributes(nitro))]
 pub fn derive_convert(input: TokenStream) -> TokenStream {
-    derive(input, convert::derive)
+    derive::<convert::Builder>(input)
 }
 
 #[derive(Clone, Copy)]
@@ -80,7 +146,7 @@ impl quote::ToTokens for DL {
 
 #[derive(Clone)]
 struct NamedField {
-    pub attrs: FieldAttr,
+    pub attrs: field::Attr,
     pub name: syn::Ident,
     pub ty: syn::Type,
 }
@@ -89,7 +155,7 @@ impl TryFrom<syn::Field> for NamedField {
     type Error = syn::Error;
     fn try_from(field: syn::Field) -> syn::Result<Self> {
         let syn::Field { ident, attrs, ty, .. } = field;
-        let attrs = FieldAttr::parse_attrs(attrs)?;
+        let attrs = field::Attr::parse_attrs(attrs)?;
         Ok(Self { attrs, name: ident.unwrap(), ty })
     }
 }
@@ -104,7 +170,7 @@ struct Column {
 impl From<NamedField> for Column {
     fn from(f: NamedField) -> Self {
         Self {
-            name: f.attrs.rename.as_ref().map(|l| l.value()).unwrap_or_else(|| f.name.to_string()),
+            name: f.attrs.rename.as_ref().map_or_else(|| f.name.to_string(), syn::LitStr::value),
             ident: f.name,
             ty: f.ty,
         }

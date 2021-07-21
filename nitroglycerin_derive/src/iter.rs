@@ -1,24 +1,30 @@
-pub trait IterExt: Iterator {
+pub trait Ext: Iterator {
     fn split_by<F>(&mut self, split: F) -> SplitBy<'_, Self, F>
     where
         Self: Sized,
         F: FnMut(&Self::Item) -> bool;
 }
 
-impl<I: Iterator> IterExt for I {
+impl<I: Iterator> Ext for I {
     fn split_by<F>(&mut self, split: F) -> SplitBy<'_, Self, F>
     where
         Self: Sized,
         F: FnMut(&Self::Item) -> bool,
     {
-        SplitBy { iter: self, split, done: None }
+        SplitBy { iter: self, split, state: SplitByState::Continue }
     }
+}
+
+pub enum SplitByState<T> {
+    Continue,
+    Split(T),
+    Finished
 }
 
 pub struct SplitBy<'a, I: 'a + Iterator, F> {
     iter: &'a mut I,
     split: F,
-    done: Option<Option<I::Item>>,
+    state: SplitByState<I::Item>,
 }
 
 impl<'a, I: 'a + Iterator, F: FnMut(&I::Item) -> bool> Iterator for SplitBy<'a, I, F> {
@@ -26,12 +32,12 @@ impl<'a, I: 'a + Iterator, F: FnMut(&I::Item) -> bool> Iterator for SplitBy<'a, 
     fn next(&mut self) -> Option<Self::Item> {
         match self.iter.next() {
             None => {
-                self.done = Some(None);
+                self.state = SplitByState::Finished;
                 None
             }
             Some(item) => {
                 if (self.split)(&item) {
-                    self.done = Some(Some(item));
+                    self.state = SplitByState::Split(item);
                     None
                 } else {
                     Some(item)
@@ -42,7 +48,7 @@ impl<'a, I: 'a + Iterator, F: FnMut(&I::Item) -> bool> Iterator for SplitBy<'a, 
 }
 
 impl<'a, I: 'a + Iterator, F> SplitBy<'a, I, F> {
-    pub fn done(&mut self) -> Option<Option<I::Item>> {
-        std::mem::replace(&mut self.done, None)
+    pub fn done(&mut self) -> SplitByState<I::Item> {
+        std::mem::replace(&mut self.state, SplitByState::Continue)
     }
 }

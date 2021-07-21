@@ -8,6 +8,8 @@ license = "MIT"
 repository = "https://github.com/conradludgate/nitroglycerin"
 readme = "../README.md"
 
+include = ["src/**/*", "Cargo.toml", "../DOCS.md", "../README.md"]
+
 [lib]
 proc-macro = true
 
@@ -15,4 +17,3 @@ proc-macro = true
 quote = "1.0"
 syn = "1.0"
 proc-macro2 = "1.0"
-derive_builder = "0.10.2"

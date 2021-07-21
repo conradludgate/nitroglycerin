@@ -1,38 +1,9 @@
 use proc_macro2::{Delimiter, Ident, Span, TokenStream, TokenTree};
-use syn::{parse2, LitStr, Token};
+use syn::{parse2, Token};
 
-use crate::split_by::IterExt;
+use crate::iter::{Ext, SplitByState};
 
-#[derive(Builder, Clone)]
-#[builder(setter(strip_option))]
-pub struct FieldAttr {
-    #[builder(default)]
-    pub rename: Option<LitStr>,
-
-    #[builder(default)]
-    pub partition_key: Option<()>,
-
-    #[builder(default)]
-    pub sort_key: Option<()>,
-}
-
-impl FieldAttr {
-    pub fn parse_attrs(attrs: Vec<syn::Attribute>) -> syn::Result<Self> {
-        FieldAttrBuilder::default().parse_attrs(attrs)?.build().map_err(|err| syn::Error::new(Span::call_site(), err))
-    }
-}
-
-impl AttrBuilder for FieldAttrBuilder {
-    fn parse(&mut self, ident: Ident, tokens: TokenStream) -> syn::Result<()> {
-        match ident.to_string().as_ref() {
-            "rename" => self.rename(equal(tokens)?),
-            "partition_key" => self.partition_key(empty(tokens)?),
-            "sort_key" => self.sort_key(empty(tokens)?),
-            _ => return Err(syn::Error::new_spanned(ident, "unknown parameter")),
-        };
-        Ok(())
-    }
-}
+pub mod field;
 
 fn equal<T: syn::parse::Parse>(tokens: TokenStream) -> syn::Result<T> {
     struct Equal<T> {
@@ -75,13 +46,13 @@ trait AttrBuilder: Sized {
     }
 
     fn parse_attr(&mut self, tokens: TokenStream) -> syn::Result<()> {
-        for tt in tokens.into_iter() {
+        for tt in tokens {
             let (inner, span) = match tt {
                 TokenTree::Group(g) if g.delimiter() == Delimiter::Parenthesis => Ok((g.stream(), g.span())),
                 t => Err(syn::Error::new_spanned(t, "expected parenthesied attribute arguments")),
             }?;
 
-            self.parse_args(span, inner.into_iter().peekable())?;
+            self.parse_args(span, inner)?;
         }
         Ok(())
     }
@@ -95,9 +66,9 @@ trait AttrBuilder: Sized {
         loop {
             self.parse_arg(span, &mut split)?;
             match split.done() {
-                Some(Some(p)) => span = p.span(),
-                Some(None) => break Ok(()),
-                None => unreachable!(),
+                SplitByState::Split(p) => span = p.span(),
+                SplitByState::Finished => break Ok(()),
+                SplitByState::Continue => unreachable!(),
             }
         }
     }

@@ -1,4 +1,4 @@
-//! nitroglycerin - High level dynamodb crate
+//! High level dynamodb crate
 //!
 //! ```ignore
 //! use nitroglycerin::{Attributes, Key, Query, Table, DynamoDb, dynamodb::DynamoDbClient};
@@ -59,6 +59,7 @@
 //!    .joined().between(1626649200, 1626735600) // and who joined between 2021-07-19 and 2021-07-20
 //!    .execute().await?;
 //! ```
+
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
 #![warn(missing_docs)]

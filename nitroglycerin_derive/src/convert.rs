@@ -1,23 +1,25 @@
 use std::convert::TryFrom;
 
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{quote, quote_spanned, ToTokens};
 use syn::{parse_quote, Generics, Ident};
 
 use crate::{Column, NamedField};
 
-pub fn derive(_vis: syn::Visibility, name: syn::Ident, generics: syn::Generics, _attrs: Vec<syn::Attribute>, fields: syn::FieldsNamed) -> syn::Result<TokenStream> {
-    let fields: Vec<_> = fields.named.into_iter().map(NamedField::try_from).collect::<syn::Result<_>>()?;
-    let columns: Vec<_> = fields.into_iter().map(Column::from).collect();
-    Ok(ConvertBuilder::new(&name, &generics, &columns).to_token_stream())
+impl<'a> crate::Builder for Builder<'a> {
+    fn parse(_vis: syn::Visibility, name: syn::Ident, generics: syn::Generics, _attrs: Vec<syn::Attribute>, fields: syn::FieldsNamed) -> syn::Result<TokenStream> {
+        let fields: Vec<_> = fields.named.into_iter().map(NamedField::try_from).collect::<syn::Result<_>>()?;
+        let columns: Vec<_> = fields.into_iter().map(Column::from).collect();
+        Ok(Builder::new(&name, &generics, &columns).to_token_stream())
+    }
 }
 
-struct ConvertBuilder<'a> {
+pub struct Builder<'a> {
     from: FromBuilder<'a>,
     into: IntoBuilder<'a>,
 }
 
-impl<'a> ConvertBuilder<'a> {
+impl<'a> Builder<'a> {
     fn new(ident: &'a Ident, generics: &'a Generics, columns: &'a [Column]) -> Self {
         Self {
             from: FromBuilder::new(ident, generics, columns),
@@ -26,7 +28,7 @@ impl<'a> ConvertBuilder<'a> {
     }
 }
 
-impl<'a> ToTokens for ConvertBuilder<'a> {
+impl<'a> ToTokens for Builder<'a> {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         let Self { from, into } = self;
         from.to_tokens(tokens);
@@ -62,17 +64,16 @@ impl<'a> ToTokens for IntoBuilder<'a> {
 
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-        let idents = columns.iter().map(|c| &c.ident);
-        let names = columns.iter().map(|c| &c.name);
-        let tys = columns.iter().map(|c| &c.ty);
+        let intos = columns.iter().map(|c| {
+            let Column { ident, name, ty } = c;
+            quote_spanned! { ident.span() => (#name.to_owned(), <#ty as ::nitroglycerin::convert::IntoAttributeValue>::into_av(t.#ident)) }
+        });
 
         tokens.extend(quote! {
             impl #impl_generics ::std::convert::From<#ident #ty_generics> for ::nitroglycerin::Attributes #where_clause {
                 fn from(t: #ident #ty_generics) -> Self {
                     <_>::into_iter([
-                        #(
-                            (#names.to_owned(), <#tys as ::nitroglycerin::convert::IntoAttributeValue>::into_av(t.#idents)),
-                        )*
+                        #( #intos ),*
                     ]).collect()
                 }
             }
@@ -118,22 +119,21 @@ impl<'a> ToTokens for FromBuilder<'a> {
 
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-        let idents = columns.iter().map(|c| &c.ident);
-        let names = columns.iter().map(|c| &c.name);
-        let tys = columns.iter().map(|c| &c.ty);
+        let extracts = columns.iter().map(|c| {
+            let Column { ident, name, ty } = c;
+            quote_spanned! { ident.span() => #ident: ::nitroglycerin::convert::extract::<#ty>(&mut a, #name)? }
+        });
 
         tokens.extend(quote! {
             impl #impl_generics ::std::convert::TryFrom<::nitroglycerin::Attributes> for #ident #ty_generics #where_clause {
                 type Error = ::nitroglycerin::AttributeError;
                 fn try_from(mut a: ::nitroglycerin::Attributes) -> ::std::result::Result<Self, Self::Error> {
-                    Ok(Self {
-                        #(
-                            #idents: ::nitroglycerin::convert::extract::<#tys>(&mut a, #names)?,
-                        )*
-                    })
+                    Ok(Self { #( #extracts ),* })
                 }
             }
+        });
 
+        tokens.extend(quote! {
             impl #impl_generics ::nitroglycerin::convert::FromAttributeValue for #ident #ty_generics #where_clause {
                 fn try_from_av(av: ::nitroglycerin::dynamodb::AttributeValue) -> ::std::result::Result<Self, ::nitroglycerin::AttributeError> {
                     av.m.ok_or(::nitroglycerin::AttributeError::IncorrectType).and_then(
