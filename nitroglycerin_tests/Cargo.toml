@@ -1,0 +1,15 @@
+[package]
+name = "nitroglycerin_tests"
+version = "0.1.0"
+edition = "2018"
+publish = false
+
+[dependencies]
+nitroglycerin = { path = "../nitroglycerin" }
+
+rusoto_dynamodb = "0.47.0"
+rusoto_core = "0.47.0"
+
+mockall = "0.10"
+async-trait = "0.1"
+tokio = "1.8"

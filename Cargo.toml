@@ -3,6 +3,7 @@
 members = [
     "nitroglycerin",
     "nitroglycerin_derive",
+    "nitroglycerin_tests",
 
     "example",
 ]

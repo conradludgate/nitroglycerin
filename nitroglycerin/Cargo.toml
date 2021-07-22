@@ -1,6 +1,6 @@
 [package]
 name = "nitroglycerin"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2018"
 authors = ["Conrad Ludgate <conradludgate@gmail.com>"]
 license = "MIT"
@@ -8,15 +8,12 @@ description = "High level dynamodb crate"
 repository = "https://github.com/conradludgate/nitroglycerin"
 readme = "../README.md"
 
-include = ["src/**/*", "Cargo.toml", "../DOCS.md", "../README.md"]
-
 [dependencies]
-nitroglycerin_derive = { path = "../nitroglycerin_derive", version = "0.4.0" }
+nitroglycerin_derive = { path = "../nitroglycerin_derive", version = "0.4.1" }
 
 rusoto_dynamodb = "0.47.0"
 rusoto_core = "0.47.0"
 thiserror = "1.0"
-bytes = "1.0"
 
 chrono = { version = "0.4", optional = true }
 uuid = { version = "0.8", optional = true }
