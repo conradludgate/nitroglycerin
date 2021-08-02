@@ -74,6 +74,8 @@ mod get;
 pub mod key;
 /// collection of functions and types used to make put item requests
 pub mod put;
+/// collection of functions and types used to make delete item requests
+pub mod delete;
 /// collection of functions and types used to make query requests
 pub mod query;
 
