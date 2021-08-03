@@ -5,10 +5,16 @@ use rusoto_dynamodb::AttributeValue;
 use crate::{AttributeError, Attributes};
 
 #[cfg(feature = "uuid")]
-mod uuid;
+/// Enables features for uuid compatibility
+pub mod uuid;
 
 #[cfg(feature = "chrono")]
-mod chrono;
+/// Enables features for chrono compatibility
+pub mod chrono;
+
+#[cfg(feature = "oauth2")]
+/// Enables features for oauth2 compatibility
+pub mod oauth2;
 
 /// Remove and parse a value from an Attribute `HashMap`
 ///

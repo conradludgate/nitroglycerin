@@ -165,6 +165,7 @@ struct Column {
     pub ident: syn::Ident,
     pub name: String,
     pub ty: syn::Type,
+    pub with: Option<syn::Path>,
 }
 
 impl From<NamedField> for Column {
@@ -173,6 +174,7 @@ impl From<NamedField> for Column {
             name: f.attrs.rename.as_ref().map_or_else(|| f.name.to_string(), syn::LitStr::value),
             ident: f.name,
             ty: f.ty,
+            with: f.attrs.with,
         }
     }
 }

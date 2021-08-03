@@ -163,7 +163,7 @@ impl<'a> ToTokens for Builder1<'a> {
         let builder = format_ident!("{}KeyBuilder", output);
         let builder_p = format_ident!("{}Partition", builder);
 
-        let Column { ident, name, ty } = partition_key;
+        let Column { ident, name, ty, .. } = partition_key;
 
         let (impl_generics, ty_generics, where_clause) = new_generics.split_for_impl();
         let (_, ty_generics2, _) = generics.split_for_impl();
@@ -262,7 +262,7 @@ impl<'a> ToTokens for Builder2<'a> {
         let type_doc = format!("part two of the key builder chain for {}", output);
 
         match sort_key {
-            Some(Column { ident, name, ty }) => {
+            Some(Column { ident, name, ty, .. }) => {
                 tokens.extend(quote! {
                     #[doc = #type_doc]
                     #vis struct #builder_p #impl_generics {

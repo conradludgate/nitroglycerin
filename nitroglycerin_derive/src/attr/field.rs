@@ -9,6 +9,7 @@ pub struct Attr {
     pub rename: Option<syn::LitStr>,
     pub partition_key: Option<()>,
     pub sort_key: Option<()>,
+    pub with: Option<syn::Path>,
 }
 
 impl Attr {
@@ -22,6 +23,7 @@ struct Builder {
     rename: Option<syn::LitStr>,
     partition_key: Option<()>,
     sort_key: Option<()>,
+    with: Option<syn::Path>,
 }
 
 impl Builder {
@@ -37,13 +39,17 @@ impl Builder {
         self.sort_key = Some(sort_key);
         self
     }
+    fn with(&mut self, with: syn::Path) -> &mut Self {
+        self.with = Some(with);
+        self
+    }
 }
 
 impl TryFrom<Builder> for Attr {
     type Error = Infallible;
     fn try_from(value: Builder) -> Result<Self, Self::Error> {
-        let Builder { rename, partition_key, sort_key } = value;
-        Ok(Self { rename, partition_key, sort_key })
+        let Builder { rename, partition_key, sort_key, with } = value;
+        Ok(Self { rename, partition_key, sort_key, with })
     }
 }
 
@@ -53,6 +59,7 @@ impl AttrBuilder for Builder {
             "rename" => self.rename(equal(tokens)?),
             "partition_key" => self.partition_key(empty(tokens)?),
             "sort_key" => self.sort_key(empty(tokens)?),
+            "with" => self.with(equal(tokens)?),
             _ => return Err(syn::Error::new_spanned(ident, "unknown parameter")),
         };
         Ok(())

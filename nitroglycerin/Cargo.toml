@@ -1,6 +1,6 @@
 [package]
 name = "nitroglycerin"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2018"
 authors = ["Conrad Ludgate <conradludgate@gmail.com>"]
 license = "MIT"
@@ -9,11 +9,13 @@ repository = "https://github.com/conradludgate/nitroglycerin"
 readme = "../README.md"
 
 [dependencies]
-nitroglycerin_derive = { path = "../nitroglycerin_derive", version = "0.4.1" }
+nitroglycerin_derive = { path = "../nitroglycerin_derive", version = "0.4.2" }
 
 rusoto_dynamodb = "0.47.0"
 rusoto_core = "0.47.0"
 thiserror = "1.0"
+serde_json = "1.0"
 
 chrono = { version = "0.4", optional = true }
 uuid = { version = "0.8", optional = true }
+oauth2 = { version = "4.1", optional = true }

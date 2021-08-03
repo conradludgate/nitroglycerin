@@ -47,7 +47,7 @@ impl<'a> IntoBuilder<'a> {
         let mut generics = generics.clone();
         let where_clause = generics.make_where_clause();
 
-        for column in columns {
+        for column in columns.iter().filter(|c| c.with.is_none()) {
             let ty = &column.ty;
             where_clause.predicates.push(parse_quote! {
                 #ty: ::nitroglycerin::convert::IntoAttributeValue
@@ -65,8 +65,11 @@ impl<'a> ToTokens for IntoBuilder<'a> {
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
         let intos = columns.iter().map(|c| {
-            let Column { ident, name, ty } = c;
-            quote_spanned! { ident.span() => (#name.to_owned(), <#ty as ::nitroglycerin::convert::IntoAttributeValue>::into_av(t.#ident)) }
+            let Column { ident, name, ty, with } = c;
+            match with {
+                None => quote_spanned! { ident.span() => (#name.to_owned(), <#ty as ::nitroglycerin::convert::IntoAttributeValue>::into_av(t.#ident)) },
+                Some(with) => quote_spanned! { ident.span() => (#name.to_owned(), #with::into_av(t.#ident)) },
+            }
         });
 
         tokens.extend(quote! {
@@ -102,7 +105,7 @@ impl<'a> FromBuilder<'a> {
         let mut generics = generics.clone();
         let where_clause = generics.make_where_clause();
 
-        for column in columns {
+        for column in columns.iter().filter(|c| c.with.is_none()) {
             let ty = &column.ty;
             where_clause.predicates.push(parse_quote! {
                 #ty: ::nitroglycerin::convert::FromAttributeValue
@@ -120,8 +123,11 @@ impl<'a> ToTokens for FromBuilder<'a> {
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
         let extracts = columns.iter().map(|c| {
-            let Column { ident, name, ty } = c;
-            quote_spanned! { ident.span() => #ident: ::nitroglycerin::convert::extract::<#ty>(&mut a, #name)? }
+            let Column { ident, name, ty, with } = c;
+            match with {
+                None => quote_spanned! { ident.span() => #ident: ::nitroglycerin::convert::extract::<#ty>(&mut a, #name)? },
+                Some(with) => quote_spanned! { ident.span() => #ident: #with::try_from_av(a.remove(#name).ok_or_else(|| ::nitroglycerin::AttributeError::MissingField(#name.to_owned()))?)? },
+            }
         });
 
         tokens.extend(quote! {
