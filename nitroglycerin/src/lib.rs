@@ -62,12 +62,12 @@
 
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
-#![warn(missing_docs)]
+// #![warn(missing_docs)]
 
 mod client;
 
 /// module covering conversions to and from dynamodb attribute values
-pub mod convert;
+// pub mod convert;
 /// collection of functions and types used to make get item requests
 mod get;
 /// collection of functions and types used to make key requests
@@ -79,10 +79,17 @@ pub mod delete;
 /// collection of functions and types used to make query requests
 pub mod query;
 
+mod ser;
+mod de;
+
+pub use ser::{to_av, SerError};
+pub use de::{from_av, DeError};
+pub use serde;
+
 use std::{collections::HashMap, error::Error};
 
 pub use client::DynamoDb;
-pub use nitroglycerin_derive::{Attributes, Key, Query};
+pub use nitroglycerin_derive::{Key, Query};
 pub use rusoto_dynamodb as dynamodb;
 use thiserror::Error;
 
@@ -109,8 +116,8 @@ impl<T: Table> TableIndex for T {
 #[derive(Debug, Error)]
 pub enum DynamoError<E: Error + 'static> {
     /// Error originated from an attribute value parse error
-    #[error("could not parse dynamo attributes: {0}")]
-    ParseError(#[from] AttributeError),
+    #[error("could not deserialize dynamo attributes: {0}")]
+    DeError(#[from] DeError),
     /// Error originated from a dynamodb request error
     #[error("could not connect to dynamo: {0}")]
     Rusoto(#[from] rusoto_core::RusotoError<E>),

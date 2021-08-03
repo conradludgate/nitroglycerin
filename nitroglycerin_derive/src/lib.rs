@@ -71,7 +71,6 @@ use proc_macro::TokenStream;
 use syn::{parse_macro_input, parse_quote, spanned::Spanned, DeriveInput};
 
 mod attr;
-mod convert;
 mod key;
 mod query;
 mod iter;
@@ -110,12 +109,6 @@ pub fn derive_key(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(Query, attributes(nitro))]
 pub fn derive_query(input: TokenStream) -> TokenStream {
     derive::<query::Builder>(input)
-}
-
-/// Implement `Into<Attributes>` and `TryFrom<Attributes>`
-#[proc_macro_derive(Attributes, attributes(nitro))]
-pub fn derive_convert(input: TokenStream) -> TokenStream {
-    derive::<convert::Builder>(input)
 }
 
 #[derive(Clone, Copy)]

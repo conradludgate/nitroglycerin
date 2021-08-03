@@ -1,6 +1,6 @@
 [package]
 name = "nitroglycerin_derive"
-version = "0.4.2"
+version = "0.5.0"
 edition = "2018"
 authors = ["Conrad Ludgate <conradludgate@gmail.com>"]
 description = "derive(Attributes, Get, Query) for nitroglycerin/dynamodb"

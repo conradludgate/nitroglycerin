@@ -10,7 +10,7 @@ use rusoto_dynamodb::*;
 mod mock;
 use mock::MockDynamoDbClient;
 
-#[derive(Debug, PartialEq, Attributes, Key, Query)]
+#[derive(Debug, PartialEq, Key, Query)]
 struct ExampleTable1 {
     #[nitro(partition_key, rename = "id")]
     pub partition: String,
@@ -27,7 +27,7 @@ impl Table for ExampleTable1 {
     }
 }
 
-#[derive(Debug, PartialEq, Attributes, Key, Query)]
+#[derive(Debug, PartialEq, Key, Query)]
 struct ExampleTable2 {
     #[nitro(partition_key, rename = "id")]
     pub partition: String,

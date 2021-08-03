@@ -183,12 +183,12 @@ impl<'a> ToTokens for Builder1<'a> {
         tokens.extend(quote_spanned! { ident.span() =>
             impl #impl_generics #builder #ty_generics #where_clause {
                 #[doc = #fn_doc]
-                #vis fn #ident(self, #ident: impl ::std::convert::Into<#ty>) -> #builder_p #ty_generics
+                #vis fn #ident(self, #ident: impl &#ty) -> #builder_p #ty_generics
                 where
-                    #ty: ::nitroglycerin::convert::IntoAttributeValue,
+                    #ty: ::nitroglycerin::serde::Serialize,
                     #output #ty_generics2: ::nitroglycerin::Table,
                 {
-                    let partition_key: #ty = #ident.into();
+                    let partition_key: &#ty = #ident;
                     let Self { client, _phantom } = self;
 
                     let key = ::nitroglycerin::key::Key::new::<#output #ty_generics2, _>(#name, partition_key);
@@ -283,11 +283,11 @@ impl<'a> ToTokens for Builder2<'a> {
                 tokens.extend(quote_spanned! { ident.span() =>
                     impl #impl_generics #builder_p #ty_generics #where_clause {
                         #[doc = #fn_doc]
-                        #vis fn #ident(self, #ident: impl ::std::convert::Into<#ty>) -> ::nitroglycerin::key::Expr<#DL, #D, #R, #output #ty_generics2>
+                        #vis fn #ident(self, #ident: impl &#ty) -> ::nitroglycerin::key::Expr<#DL, #D, #R, #output #ty_generics2>
                         where
-                            #ty: ::nitroglycerin::convert::IntoAttributeValue,
+                            #ty: ::nitroglycerin::serde::Serialize,
                         {
-                            let sort_key: #ty = #ident.into();
+                            let sort_key: &#ty = #ident;
                             let Self { client, mut key, _phantom } = self;
 
                             key.insert(#name, sort_key);

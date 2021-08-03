@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
 
-use crate::{convert::IntoAttributeValue, Attributes, Table};
+use serde::Serialize;
+
+use crate::{to_av, Attributes, Table};
 
 /// Key type that can be built into `GetItem` requests
 pub struct Key {
@@ -10,16 +12,16 @@ pub struct Key {
 
 impl Key {
     /// create a [`Key`] using the table and partition key
-    pub fn new<T: Table, K: IntoAttributeValue>(key_name: &str, key_value: K) -> Self {
+    pub fn new<T: Table, K: Serialize>(key_name: &str, key_value: &K) -> Self {
         Self {
             table_name: T::table_name(),
-            key: <_>::into_iter([(key_name.to_owned(), key_value.into_av())]).collect(),
+            key: <_>::into_iter([(key_name.to_owned(), to_av(key_value).unwrap())]).collect(),
         }
     }
 
     /// Insert a new name/value pair into the key
-    pub fn insert(&mut self, key_name: impl Into<String>, key_value: impl IntoAttributeValue) {
-        self.key.insert(key_name.into(), key_value.into_av());
+    pub fn insert(&mut self, key_name: impl Into<String>, key_value: &impl Serialize) {
+        self.key.insert(key_name.into(), to_av(key_value).unwrap());
     }
 }
 
