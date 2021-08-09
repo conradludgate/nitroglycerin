@@ -133,4 +133,8 @@ pub enum AttributeError {
     /// Error occured because value could not be parsed
     #[error("could not parse value: {0}")]
     ParseError(#[from] Box<dyn Error>),
+
+    /// Error occurs when no item is returned by dynamodb
+    #[error("no item returned by dynamodb")]
+    MissingAttributes,
 }
