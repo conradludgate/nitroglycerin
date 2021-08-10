@@ -51,7 +51,7 @@ impl<'d, D: 'd + ?Sized, T> key::Expr<'d, D, DeleteItemInput, T> {
     #[must_use]
     pub fn return_all_old(self) -> key::Expr<'d, D, ReturnAllOld, T> {
         let Self { client, mut input, _phantom } = self;
-        input.return_values = Some("ALL-OLD".to_string());
+        input.return_values = Some("ALL_OLD".to_string());
         key::Expr {
             client,
             input: ReturnAllOld { input },
