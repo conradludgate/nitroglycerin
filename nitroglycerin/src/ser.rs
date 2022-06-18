@@ -1,36 +1,39 @@
 use bytes::Bytes;
 use rusoto_dynamodb::AttributeValue;
 use serde::{
-    ser::{self, Error, SerializeMap},
+    ser::{self, SerializeMap},
     Serialize,
 };
 use thiserror::Error;
 
 use crate::Attributes;
-pub struct Serializer<'a> {
+struct Serializer<'a> {
     output: &'a mut AttributeValue,
 }
 
 #[derive(Debug, Error)]
-pub enum SerError {
+pub enum Error {
     #[error("{0}")]
     Message(String),
 
     #[error("expected string type")]
     ExpectedStr,
+
+    #[error("expected map type")]
+    ExpectedMap,
 }
 
-impl ser::Error for SerError {
+impl ser::Error for Error {
     fn custom<T: std::fmt::Display>(msg: T) -> Self {
-        SerError::Message(msg.to_string())
+        Self::Message(msg.to_string())
     }
 }
 
-type Result<T, E = SerError> = std::result::Result<T, E>;
+type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub fn to_av<T>(value: &T) -> Result<AttributeValue>
 where
-    T: Serialize,
+    T: Serialize + ?Sized,
 {
     let mut output = AttributeValue::default();
     let serializer = Serializer { output: &mut output };
@@ -38,9 +41,17 @@ where
     Ok(output)
 }
 
+pub fn to_av_map<T>(value: &T) -> Result<Attributes>
+where
+    T: Serialize + ?Sized,
+{
+    let av = to_av(value)?;
+    av.m.ok_or(Error::ExpectedMap)
+}
+
 impl<'a> ser::Serializer for Serializer<'a> {
     type Ok = ();
-    type Error = SerError;
+    type Error = Error;
 
     type SerializeSeq = SeqSerializer<'a>;
     type SerializeTuple = SeqSerializer<'a>;
@@ -211,7 +222,7 @@ pub struct SeqSerializer<'a> {
 
 impl<'a> ser::SerializeSeq for SeqSerializer<'a> {
     type Ok = ();
-    type Error = SerError;
+    type Error = Error;
 
     fn serialize_element<T>(&mut self, value: &T) -> Result<()>
     where
@@ -229,7 +240,7 @@ impl<'a> ser::SerializeSeq for SeqSerializer<'a> {
 // Same thing but for tuples.
 impl<'a> ser::SerializeTuple for SeqSerializer<'a> {
     type Ok = ();
-    type Error = SerError;
+    type Error = Error;
 
     fn serialize_element<T>(&mut self, value: &T) -> Result<()>
     where
@@ -246,7 +257,7 @@ impl<'a> ser::SerializeTuple for SeqSerializer<'a> {
 
 impl<'a> ser::SerializeTupleStruct for SeqSerializer<'a> {
     type Ok = ();
-    type Error = SerError;
+    type Error = Error;
 
     fn serialize_field<T>(&mut self, value: &T) -> Result<()>
     where
@@ -263,7 +274,7 @@ impl<'a> ser::SerializeTupleStruct for SeqSerializer<'a> {
 
 impl<'a> ser::SerializeTupleVariant for SeqSerializer<'a> {
     type Ok = ();
-    type Error = SerError;
+    type Error = Error;
 
     fn serialize_field<T>(&mut self, value: &T) -> Result<()>
     where
@@ -293,7 +304,7 @@ pub struct MapSerializer<'a> {
 // difference so the default behavior for `serialize_entry` is fine.
 impl<'a> ser::SerializeMap for MapSerializer<'a> {
     type Ok = ();
-    type Error = SerError;
+    type Error = Error;
 
     fn serialize_key<T>(&mut self, key: &T) -> Result<()>
     where
@@ -307,7 +318,7 @@ impl<'a> ser::SerializeMap for MapSerializer<'a> {
     where
         T: ?Sized + Serialize,
     {
-        let key = self.key.take().ok_or_else(|| SerError::custom("missing key"))?;
+        let key = self.key.take().ok_or_else(|| ser::Error::custom("missing key"))?;
         self.output.insert(key, to_av(&value)?);
         Ok(())
     }
@@ -319,7 +330,7 @@ impl<'a> ser::SerializeMap for MapSerializer<'a> {
 
 impl<'a> ser::SerializeStruct for MapSerializer<'a> {
     type Ok = ();
-    type Error = SerError;
+    type Error = Error;
 
     fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<()>
     where
@@ -335,7 +346,7 @@ impl<'a> ser::SerializeStruct for MapSerializer<'a> {
 
 impl<'a> ser::SerializeStructVariant for MapSerializer<'a> {
     type Ok = ();
-    type Error = SerError;
+    type Error = Error;
 
     fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> Result<()>
     where
@@ -356,7 +367,7 @@ struct StrSerializer<'a> {
 impl<'a> ser::Serializer for StrSerializer<'a> {
     type Ok = ();
 
-    type Error = SerError;
+    type Error = Error;
 
     type SerializeSeq = Self;
     type SerializeTuple = Self;
@@ -367,51 +378,51 @@ impl<'a> ser::Serializer for StrSerializer<'a> {
     type SerializeStructVariant = Self;
 
     fn serialize_bool(self, _v: bool) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_i8(self, _v: i8) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_i16(self, _v: i16) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_i32(self, _v: i32) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_i64(self, _v: i64) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_u8(self, _v: u8) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_u16(self, _v: u16) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_u32(self, _v: u32) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_u64(self, _v: u64) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_f32(self, _v: f32) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_f64(self, _v: f64) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_char(self, _v: char) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_str(self, v: &str) -> Result<()> {
@@ -420,191 +431,191 @@ impl<'a> ser::Serializer for StrSerializer<'a> {
     }
 
     fn serialize_bytes(self, _v: &[u8]) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_none(self) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_some<T>(self, _value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_unit(self) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_unit_struct(self, _name: &'static str) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_unit_variant(self, _name: &'static str, _variant_index: u32, _variant: &'static str) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_newtype_struct<T>(self, _name: &'static str, _value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_newtype_variant<T>(self, _name: &'static str, _variant_index: u32, _variant: &'static str, _value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_tuple_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeTupleStruct> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_tuple_variant(self, _name: &'static str, _variant_index: u32, _variant: &'static str, _len: usize) -> Result<Self::SerializeTupleVariant> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_struct(self, _name: &'static str, _len: usize) -> Result<Self::SerializeStruct> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_struct_variant(self, _name: &'static str, _variant_index: u32, _variant: &'static str, _len: usize) -> Result<Self::SerializeStructVariant> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 }
 
 impl<'a> ser::SerializeSeq for StrSerializer<'a> {
     type Ok = ();
-    type Error = SerError;
+    type Error = Error;
 
     fn serialize_element<T>(&mut self, _value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn end(self) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 }
 
 impl<'a> ser::SerializeTuple for StrSerializer<'a> {
     type Ok = ();
-    type Error = SerError;
+    type Error = Error;
 
     fn serialize_element<T>(&mut self, _value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn end(self) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 }
 
 impl<'a> ser::SerializeTupleStruct for StrSerializer<'a> {
     type Ok = ();
-    type Error = SerError;
+    type Error = Error;
 
     fn serialize_field<T>(&mut self, _value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn end(self) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 }
 
 impl<'a> ser::SerializeTupleVariant for StrSerializer<'a> {
     type Ok = ();
-    type Error = SerError;
+    type Error = Error;
 
     fn serialize_field<T>(&mut self, _value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn end(self) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 }
 
 impl<'a> ser::SerializeMap for StrSerializer<'a> {
     type Ok = ();
-    type Error = SerError;
+    type Error = Error;
 
     fn serialize_key<T>(&mut self, _key: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn serialize_value<T>(&mut self, _value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn end(self) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 }
 
 impl<'a> ser::SerializeStruct for StrSerializer<'a> {
     type Ok = ();
-    type Error = SerError;
+    type Error = Error;
 
     fn serialize_field<T>(&mut self, _key: &'static str, _value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn end(self) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 }
 
 impl<'a> ser::SerializeStructVariant for StrSerializer<'a> {
     type Ok = ();
-    type Error = SerError;
+    type Error = Error;
 
     fn serialize_field<T>(&mut self, _key: &'static str, _value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 
     fn end(self) -> Result<()> {
-        Err(SerError::ExpectedStr)
+        Err(Error::ExpectedStr)
     }
 }
 
@@ -672,10 +683,10 @@ mod tests {
         let n = E::Newtype(1);
         let expected = AttributeValue {
             m: Some(
-                <_>::into_iter([("Newtype".to_owned(), AttributeValue {
+                std::iter::once(("Newtype".to_owned(), AttributeValue {
                     n: Some("1".to_owned()),
                     ..AttributeValue::default()
-                })])
+                }))
                 .collect(),
             ),
             ..AttributeValue::default()
@@ -685,7 +696,7 @@ mod tests {
         let t = E::Tuple(1, 2);
         let expected = AttributeValue {
             m: Some(
-                <_>::into_iter([("Tuple".to_owned(), AttributeValue {
+                std::iter::once(("Tuple".to_owned(), AttributeValue {
                     l: Some(vec![
                         AttributeValue {
                             n: Some("1".to_owned()),
@@ -697,7 +708,7 @@ mod tests {
                         },
                     ]),
                     ..AttributeValue::default()
-                })])
+                }))
                 .collect(),
             ),
             ..AttributeValue::default()
@@ -707,16 +718,16 @@ mod tests {
         let s = E::Struct { a: 1 };
         let expected = AttributeValue {
             m: Some(
-                <_>::into_iter([("Struct".to_owned(), AttributeValue {
+                std::iter::once(("Struct".to_owned(), AttributeValue {
                     m: Some(
-                        <_>::into_iter([("a".to_owned(), AttributeValue {
+                        std::iter::once(("a".to_owned(), AttributeValue {
                             n: Some("1".to_owned()),
                             ..AttributeValue::default()
-                        })])
+                        }))
                         .collect(),
                     ),
                     ..AttributeValue::default()
-                })])
+                }))
                 .collect(),
             ),
             ..AttributeValue::default()

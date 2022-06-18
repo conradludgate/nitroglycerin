@@ -1,7 +1,7 @@
 use rusoto_dynamodb::{AttributeValue, GetItemError, GetItemInput};
 use serde::{de::DeserializeOwned};
 
-use crate::{DynamoError, Table, client::DynamoDb, from_av, key};
+use crate::{DynamoError, Table, client::DynamoDb, de::from_av, key};
 
 /// Trait that declares a type can be built into a get item request
 pub trait Get<'d, D: ?Sized>: Table {
@@ -46,7 +46,7 @@ where
     /// # Errors
     /// Will error if the dynamodb request fails or if the result could not be parsed
     pub async fn execute(self) -> Result<Option<T>, DynamoError<GetItemError>> {
-        let Self { client, input, _phantom } = self;
+        let Self { client, input, marker: _phantom } = self;
         let output = client.get_item(input).await?;
         Ok(output.item.map(|item| AttributeValue{
             m: Some(item),

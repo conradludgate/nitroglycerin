@@ -48,8 +48,18 @@ impl Builder {
 impl TryFrom<Builder> for Attr {
     type Error = Infallible;
     fn try_from(value: Builder) -> Result<Self, Self::Error> {
-        let Builder { rename, partition_key, sort_key, with } = value;
-        Ok(Self { rename, partition_key, sort_key, with })
+        let Builder {
+            rename,
+            partition_key,
+            sort_key,
+            with,
+        } = value;
+        Ok(Self {
+            rename,
+            partition_key,
+            sort_key,
+            with,
+        })
     }
 }
 

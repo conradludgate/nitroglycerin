@@ -159,17 +159,17 @@ impl<'a> ToTokens for Builder1<'a> {
         tokens.extend(quote_spanned! { ident.span() =>
             impl #impl_generics #builder #ty_generics #where_clause {
                 #[doc = #fn_doc]
-                #vis fn #ident(self, #ident: &#ty) -> #builder_p #ty_generics
+                #vis fn #ident<T>(self, #ident: &T) -> ::std::result::Result<#builder_p #ty_generics, ::nitroglycerin::ser::Error>
                 where
-                    #ty: ::nitroglycerin::serde::Serialize,
+                    T: ::std::borrow::ToOwned<Owned = #ty> + ::nitroglycerin::serde::Serialize + ?::std::marker::Sized,
                     #output #ty_generics2: ::nitroglycerin::TableIndex,
                 {
-                    let partition_key: &#ty = #ident;
+                    let partition_key: &T = #ident;
                     let Self { client, _phantom } = self;
 
-                    let input = ::nitroglycerin::query::new_input::<#output #ty_generics2, _>(#name, partition_key);
+                    let input = ::nitroglycerin::query::new_input::<#output #ty_generics2, _>(#name, partition_key)?;
 
-                    #builder_p::new(client, input)
+                    ::std::result::Result::Ok(#builder_p::new(client, input))
                 }
             }
         });

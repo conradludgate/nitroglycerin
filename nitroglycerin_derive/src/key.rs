@@ -183,17 +183,17 @@ impl<'a> ToTokens for Builder1<'a> {
         tokens.extend(quote_spanned! { ident.span() =>
             impl #impl_generics #builder #ty_generics #where_clause {
                 #[doc = #fn_doc]
-                #vis fn #ident(self, #ident: impl &#ty) -> #builder_p #ty_generics
+                #vis fn #ident<T>(self, #ident: &T) -> ::std::result::Result<#builder_p #ty_generics, ::nitroglycerin::ser::Error>
                 where
-                    #ty: ::nitroglycerin::serde::Serialize,
+                    T: ::std::borrow::ToOwned<Owned = #ty> + ::nitroglycerin::serde::Serialize + ?::std::marker::Sized,
                     #output #ty_generics2: ::nitroglycerin::Table,
                 {
-                    let partition_key: &#ty = #ident;
+                    let partition_key: &T = #ident;
                     let Self { client, _phantom } = self;
 
-                    let key = ::nitroglycerin::key::Key::new::<#output #ty_generics2, _>(#name, partition_key);
+                    let key = ::nitroglycerin::key::Key::new::<#output #ty_generics2, _>(#name, partition_key)?;
 
-                    #builder_p::new(client, key)
+                    ::std::result::Result::Ok(#builder_p::new(client, key))
                 }
             }
         });
@@ -283,16 +283,16 @@ impl<'a> ToTokens for Builder2<'a> {
                 tokens.extend(quote_spanned! { ident.span() =>
                     impl #impl_generics #builder_p #ty_generics #where_clause {
                         #[doc = #fn_doc]
-                        #vis fn #ident(self, #ident: impl &#ty) -> ::nitroglycerin::key::Expr<#DL, #D, #R, #output #ty_generics2>
+                        #vis fn #ident<T>(self, #ident: &T) -> ::std::result::Result<::nitroglycerin::key::Expr<#DL, #D, #R, #output #ty_generics2>, ::nitroglycerin::ser::Error>
                         where
-                            #ty: ::nitroglycerin::serde::Serialize,
+                            T: ::std::borrow::ToOwned<Owned = #ty> + ::nitroglycerin::serde::Serialize + ?::std::marker::Sized,
                         {
-                            let sort_key: &#ty = #ident;
+                            let sort_key: &T = #ident;
                             let Self { client, mut key, _phantom } = self;
 
-                            key.insert(#name, sort_key);
+                            key.insert(#name, sort_key)?;
 
-                            ::nitroglycerin::key::Expr::new(client, key)
+                            ::std::result::Result::Ok(::nitroglycerin::key::Expr::new(client, key))
                         }
                     }
                 });

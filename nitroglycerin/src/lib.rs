@@ -62,6 +62,7 @@
 
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
+#![allow(clippy::missing_const_for_fn)]
 // #![warn(missing_docs)]
 
 mod client;
@@ -79,11 +80,11 @@ pub mod delete;
 /// collection of functions and types used to make query requests
 pub mod query;
 
-mod ser;
-mod de;
+pub mod ser;
+pub mod de;
 
-pub use ser::{to_av, SerError};
-pub use de::{from_av, DeError};
+// pub use ser::{to_av, to_av_map, SerError};
+// pub use de::{from_av, Error};
 pub use serde;
 
 use std::{collections::HashMap, error::Error};
@@ -117,7 +118,13 @@ impl<T: Table> TableIndex for T {
 pub enum DynamoError<E: Error + 'static> {
     /// Error originated from an attribute value parse error
     #[error("could not deserialize dynamo attributes: {0}")]
-    DeError(#[from] DeError),
+    DeError(#[from] de::Error),
+    /// Error originated from an attribute value convert error
+    #[error("could not serialize dynamo attributes: {0}")]
+    SerError(#[from] ser::Error),
+    /// Error originated from an attribute value parse error
+    #[error("{0}")]
+    AttributeError(#[from] AttributeError),
     /// Error originated from a dynamodb request error
     #[error("could not connect to dynamo: {0}")]
     Rusoto(#[from] rusoto_core::RusotoError<E>),
@@ -129,18 +136,6 @@ pub type Attributes = HashMap<String, rusoto_dynamodb::AttributeValue>;
 /// Error returned when parsing attribute values
 #[derive(Debug, Error)]
 pub enum AttributeError {
-    /// Error occured because the required field was missing
-    #[error("missing field {0}")]
-    MissingField(String),
-
-    /// Error occured because the attribute value type was not supported
-    #[error("incorrect type")]
-    IncorrectType,
-
-    /// Error occured because value could not be parsed
-    #[error("could not parse value: {0}")]
-    ParseError(#[from] Box<dyn Error>),
-
     /// Error occurs when no item is returned by dynamodb
     #[error("no item returned by dynamodb")]
     MissingAttributes,

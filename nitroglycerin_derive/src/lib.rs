@@ -68,12 +68,13 @@ use std::convert::TryFrom;
 
 use attr::field;
 use proc_macro::TokenStream;
+use quote::quote;
 use syn::{parse_macro_input, parse_quote, spanned::Spanned, DeriveInput};
 
 mod attr;
+mod iter;
 mod key;
 mod query;
-mod iter;
 
 trait Builder {
     fn parse(vis: syn::Visibility, name: syn::Ident, generics: syn::Generics, attrs: Vec<syn::Attribute>, fields: syn::FieldsNamed) -> syn::Result<proc_macro2::TokenStream>;
@@ -127,13 +128,13 @@ impl quote::ToTokens for D {
 #[derive(Clone, Copy)]
 struct DL;
 impl From<DL> for syn::Lifetime {
-    fn from(_: DL) -> Self {
-        parse_quote!('__nitroglycerin_dynamo_db_dlient)
+    fn from(dl: DL) -> Self {
+        parse_quote!(#dl)
     }
 }
 impl quote::ToTokens for DL {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        syn::Lifetime::from(*self).to_tokens(tokens);
+        tokens.extend(quote! { '__nitroglycerin_dynamo_db_client });
     }
 }
 
@@ -158,7 +159,6 @@ struct Column {
     pub ident: syn::Ident,
     pub name: String,
     pub ty: syn::Type,
-    pub with: Option<syn::Path>,
 }
 
 impl From<NamedField> for Column {
@@ -167,7 +167,6 @@ impl From<NamedField> for Column {
             name: f.attrs.rename.as_ref().map_or_else(|| f.name.to_string(), syn::LitStr::value),
             ident: f.name,
             ty: f.ty,
-            with: f.attrs.with,
         }
     }
 }

@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 nitroglycerin = { path = "../nitroglycerin" }
+serde = "1"
 
 rusoto_dynamodb = "0.47.0"
 rusoto_core = "0.47.0"
