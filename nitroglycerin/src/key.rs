@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
 
-use crate::{convert::IntoAttributeValue, Attributes, Table};
+use serde::Serialize;
+
+use crate::{ser, Attributes, Table};
 
 /// Key type that can be built into `GetItem` requests
 pub struct Key {
@@ -10,16 +12,23 @@ pub struct Key {
 
 impl Key {
     /// create a [`Key`] using the table and partition key
-    pub fn new<T: Table, K: IntoAttributeValue>(key_name: &str, key_value: K) -> Self {
-        Self {
+    ///
+    /// # Errors
+    /// Returns an error if the `key_value` cannot serialise into the attribute values
+    pub fn new<T: Table, K: Serialize + ?Sized>(key_name: &str, key_value: &K) -> Result<Self, ser::Error> {
+        Ok(Self {
             table_name: T::table_name(),
-            key: <_>::into_iter([(key_name.to_owned(), key_value.into_av())]).collect(),
-        }
+            key: std::iter::once((key_name.to_owned(), ser::to_av(key_value)?)).collect(),
+        })
     }
 
     /// Insert a new name/value pair into the key
-    pub fn insert(&mut self, key_name: impl Into<String>, key_value: impl IntoAttributeValue) {
-        self.key.insert(key_name.into(), key_value.into_av());
+    ///
+    /// # Errors
+    /// Returns an error if the `key_value` cannot serialise into the attribute values
+    pub fn insert(&mut self, key_name: impl Into<String>, key_value: &(impl Serialize + ?Sized)) -> Result<(), ser::Error> {
+        self.key.insert(key_name.into(), ser::to_av(key_value)?);
+        Ok(())
     }
 }
 
@@ -36,7 +45,7 @@ pub trait Builder<'d, D: 'd + ?Sized, R: From<Key>>: Table {
 pub struct Expr<'d, D: 'd + ?Sized, Input, Table> {
     pub(crate) client: &'d D,
     pub(crate) input: Input,
-    pub(crate) _phantom: PhantomData<Table>,
+    pub(crate) marker: PhantomData<Table>,
 }
 
 impl<'d, D: 'd + ?Sized, Input, Table> Expr<'d, D, Input, Table>
@@ -46,6 +55,6 @@ where
     /// Create a new `Expr`
     pub fn new(client: &'d D, key: Key) -> Self {
         let input = key.into();
-        Self { client, input, _phantom: PhantomData }
+        Self { client, input, marker: PhantomData }
     }
 }

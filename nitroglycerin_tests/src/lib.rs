@@ -3,19 +3,21 @@
 #[macro_use]
 extern crate async_trait;
 
-use mockall::{predicate::*};
-use nitroglycerin::{Attributes, DynamoDb, Key, Query, Table};
+use mockall::predicate::*;
+use nitroglycerin::{serde::Deserialize, DynamoDb, Key, Query, Table};
 use rusoto_dynamodb::*;
 
 mod mock;
 use mock::MockDynamoDbClient;
 
-#[derive(Debug, PartialEq, Attributes, Key, Query)]
+#[derive(Debug, PartialEq, Key, Query, Deserialize)]
 struct ExampleTable1 {
     #[nitro(partition_key, rename = "id")]
+    #[serde(rename = "id")]
     pub partition: String,
 
     #[nitro(sort_key, rename = "range")]
+    #[serde(rename = "range")]
     pub sort: i32,
 
     pub extra_values: Vec<String>,
@@ -27,9 +29,10 @@ impl Table for ExampleTable1 {
     }
 }
 
-#[derive(Debug, PartialEq, Attributes, Key, Query)]
+#[derive(Debug, PartialEq, Key, Query, Deserialize)]
 struct ExampleTable2 {
     #[nitro(partition_key, rename = "id")]
+    #[serde(rename = "id")]
     pub partition: String,
 
     pub extra_values: Vec<String>,
@@ -89,7 +92,7 @@ async fn test_get() {
             })
         });
 
-    let output = client.get::<ExampleTable1>().partition("foo").sort(42i32).execute().await.unwrap();
+    let output = client.get::<ExampleTable1>().partition("foo").unwrap().sort(&42i32).unwrap().execute().await.unwrap();
     assert_eq!(
         output,
         Some(ExampleTable1 {
@@ -127,7 +130,7 @@ async fn test_get_no_sort() {
             })
         });
 
-    let output = client.get::<ExampleTable2>().partition("foo").execute().await.unwrap();
+    let output = client.get::<ExampleTable2>().partition("foo").unwrap().execute().await.unwrap();
     assert_eq!(
         output,
         Some(ExampleTable2 {
@@ -182,19 +185,22 @@ async fn test_query() {
             })
         });
 
-    let output = client.query::<ExampleTable1>().partition("foo").sort().greater_than(42i32).execute().await.unwrap();
-    assert_eq!(output, vec![
-        ExampleTable1 {
-            partition: "foo".into(),
-            sort: 43,
-            extra_values: vec!["foo".into(), "bar".into()],
-        },
-        ExampleTable1 {
-            partition: "foo".into(),
-            sort: 44,
-            extra_values: vec!["baz".into()],
-        },
-    ]);
+    let output = client.query::<ExampleTable1>().partition("foo").unwrap().sort().greater_than(&42i32).unwrap().execute().await.unwrap();
+    assert_eq!(
+        output,
+        vec![
+            ExampleTable1 {
+                partition: "foo".into(),
+                sort: 43,
+                extra_values: vec!["foo".into(), "bar".into()],
+            },
+            ExampleTable1 {
+                partition: "foo".into(),
+                sort: 44,
+                extra_values: vec!["baz".into()],
+            },
+        ]
+    );
 }
 
 #[tokio::test]
@@ -250,24 +256,27 @@ async fn test_query_optional_sort() {
             })
         });
 
-    let output = client.query::<ExampleTable1>().partition("foo").execute().await.unwrap();
-    assert_eq!(output, vec![
-        ExampleTable1 {
-            partition: "foo".into(),
-            sort: 42,
-            extra_values: vec!["foo".into(), "bar".into()],
-        },
-        ExampleTable1 {
-            partition: "foo".into(),
-            sort: 43,
-            extra_values: vec!["foo".into(), "bar".into()],
-        },
-        ExampleTable1 {
-            partition: "foo".into(),
-            sort: 44,
-            extra_values: vec!["baz".into()],
-        },
-    ]);
+    let output = client.query::<ExampleTable1>().partition("foo").unwrap().execute().await.unwrap();
+    assert_eq!(
+        output,
+        vec![
+            ExampleTable1 {
+                partition: "foo".into(),
+                sort: 42,
+                extra_values: vec!["foo".into(), "bar".into()],
+            },
+            ExampleTable1 {
+                partition: "foo".into(),
+                sort: 43,
+                extra_values: vec!["foo".into(), "bar".into()],
+            },
+            ExampleTable1 {
+                partition: "foo".into(),
+                sort: 44,
+                extra_values: vec!["baz".into()],
+            },
+        ]
+    );
 }
 
 #[tokio::test]
@@ -288,27 +297,25 @@ async fn test_query_no_sort() {
         }))
         .returning(|_| {
             Ok(QueryOutput {
-                items: Some(vec![
-                    m!(
-                        "id" => av!(s: "foo"),
-                        "extra_values" => av!(
-                            l: vec![
-                                av!(s: "foo"),
-                                av!(s: "bar"),
-                            ]
-                        ),
+                items: Some(vec![m!(
+                    "id" => av!(s: "foo"),
+                    "extra_values" => av!(
+                        l: vec![
+                            av!(s: "foo"),
+                            av!(s: "bar"),
+                        ]
                     ),
-                ]),
+                )]),
                 ..Default::default()
             })
         });
 
-    let output = client.query::<ExampleTable2>().partition("foo").execute().await.unwrap();
-    assert_eq!(output, vec![
-        ExampleTable2 {
+    let output = client.query::<ExampleTable2>().partition("foo").unwrap().execute().await.unwrap();
+    assert_eq!(
+        output,
+        vec![ExampleTable2 {
             partition: "foo".into(),
             extra_values: vec!["foo".into(), "bar".into()],
-        },
-    ]);
+        },]
+    );
 }
-

@@ -62,12 +62,13 @@
 
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
-#![warn(missing_docs)]
+#![allow(clippy::missing_const_for_fn)]
+// #![warn(missing_docs)]
 
 mod client;
 
 /// module covering conversions to and from dynamodb attribute values
-pub mod convert;
+// pub mod convert;
 /// collection of functions and types used to make get item requests
 mod get;
 /// collection of functions and types used to make key requests
@@ -79,10 +80,17 @@ pub mod delete;
 /// collection of functions and types used to make query requests
 pub mod query;
 
+pub mod ser;
+pub mod de;
+
+// pub use ser::{to_av, to_av_map, SerError};
+// pub use de::{from_av, Error};
+pub use serde;
+
 use std::{collections::HashMap, error::Error};
 
 pub use client::DynamoDb;
-pub use nitroglycerin_derive::{Attributes, Key, Query};
+pub use nitroglycerin_derive::{Key, Query};
 pub use rusoto_dynamodb as dynamodb;
 use thiserror::Error;
 
@@ -109,8 +117,14 @@ impl<T: Table> TableIndex for T {
 #[derive(Debug, Error)]
 pub enum DynamoError<E: Error + 'static> {
     /// Error originated from an attribute value parse error
-    #[error("could not parse dynamo attributes: {0}")]
-    ParseError(#[from] AttributeError),
+    #[error("could not deserialize dynamo attributes: {0}")]
+    DeError(#[from] de::Error),
+    /// Error originated from an attribute value convert error
+    #[error("could not serialize dynamo attributes: {0}")]
+    SerError(#[from] ser::Error),
+    /// Error originated from an attribute value parse error
+    #[error("{0}")]
+    AttributeError(#[from] AttributeError),
     /// Error originated from a dynamodb request error
     #[error("could not connect to dynamo: {0}")]
     Rusoto(#[from] rusoto_core::RusotoError<E>),
@@ -122,18 +136,6 @@ pub type Attributes = HashMap<String, rusoto_dynamodb::AttributeValue>;
 /// Error returned when parsing attribute values
 #[derive(Debug, Error)]
 pub enum AttributeError {
-    /// Error occured because the required field was missing
-    #[error("missing field {0}")]
-    MissingField(String),
-
-    /// Error occured because the attribute value type was not supported
-    #[error("incorrect type")]
-    IncorrectType,
-
-    /// Error occured because value could not be parsed
-    #[error("could not parse value: {0}")]
-    ParseError(#[from] Box<dyn Error>),
-
     /// Error occurs when no item is returned by dynamodb
     #[error("no item returned by dynamodb")]
     MissingAttributes,

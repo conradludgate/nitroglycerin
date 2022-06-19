@@ -1,8 +1,7 @@
-use std::convert::TryFrom;
+use rusoto_dynamodb::{AttributeValue, DeleteItemError, DeleteItemInput};
+use serde::de::DeserializeOwned;
 
-use rusoto_dynamodb::{DeleteItemError, DeleteItemInput};
-
-use crate::{key, AttributeError, Attributes, DynamoDb, DynamoError, Table};
+use crate::{AttributeError, DynamoDb, DynamoError, Table, de::from_av, key};
 
 /// Trait that declares a type can be built into a delete item request
 pub trait Delete<'d, D: 'd + ?Sized>: Table {
@@ -37,7 +36,7 @@ where
     /// # Errors
     /// Will error if the dynamodb request fails
     pub async fn execute(self) -> Result<(), DynamoError<DeleteItemError>> {
-        let Self { client, input, _phantom } = self;
+        let Self { client, input, marker: _phantom } = self;
         client.delete_item(input).await?;
         Ok(())
     }
@@ -50,12 +49,12 @@ impl<'d, D: 'd + ?Sized, T> key::Expr<'d, D, DeleteItemInput, T> {
     /// Will error if the dynamodb request fails
     #[must_use]
     pub fn return_all_old(self) -> key::Expr<'d, D, ReturnAllOld, T> {
-        let Self { client, mut input, _phantom } = self;
+        let Self { client, mut input, marker } = self;
         input.return_values = Some("ALL_OLD".to_string());
         key::Expr {
             client,
             input: ReturnAllOld { input },
-            _phantom,
+            marker,
         }
     }
 }
@@ -70,16 +69,19 @@ impl<'d, D: 'd + ?Sized, T> key::Expr<'d, D, ReturnAllOld, T>
 where
     D: DynamoDb,
     &'d D: Send,
-    T: TryFrom<Attributes, Error = AttributeError> + Send,
+    T: DeserializeOwned + Send,
 {
     /// Execute the delete item request returning the contents of the deleted item
     ///
     /// # Errors
     /// Will error if the dynamodb request fails
     pub async fn execute(self) -> Result<T, DynamoError<DeleteItemError>> {
-        let Self { client, input, _phantom } = self;
+        let Self { client, input, marker: _phantom } = self;
         let output = client.delete_item(input.input).await?;
         let item = output.attributes.ok_or(AttributeError::MissingAttributes)?;
-        Ok(T::try_from(item)?)
+        Ok(from_av(AttributeValue{
+            m: Some(item),
+            ..AttributeValue::default()
+        })?)
     }
 }

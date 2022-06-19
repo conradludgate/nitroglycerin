@@ -1,8 +1,7 @@
-use std::convert::TryFrom;
+use rusoto_dynamodb::{AttributeValue, GetItemError, GetItemInput};
+use serde::{de::DeserializeOwned};
 
-use rusoto_dynamodb::{GetItemError, GetItemInput};
-
-use crate::{AttributeError, Attributes, DynamoError, Table, client::DynamoDb, key};
+use crate::{DynamoError, Table, client::DynamoDb, de::from_av, key};
 
 /// Trait that declares a type can be built into a get item request
 pub trait Get<'d, D: ?Sized>: Table {
@@ -40,15 +39,18 @@ impl<'d, D: 'd + ?Sized, T> key::Expr<'d, D, GetItemInput, T>
 where
     D: DynamoDb,
     &'d D: Send,
-    T: TryFrom<Attributes, Error = AttributeError> + Send,
+    T: DeserializeOwned + Send,
 {
     /// Execute the get item request
     ///
     /// # Errors
     /// Will error if the dynamodb request fails or if the result could not be parsed
     pub async fn execute(self) -> Result<Option<T>, DynamoError<GetItemError>> {
-        let Self { client, input, _phantom } = self;
+        let Self { client, input, marker: _phantom } = self;
         let output = client.get_item(input).await?;
-        Ok(output.item.map(T::try_from).transpose()?)
+        Ok(output.item.map(|item| AttributeValue{
+            m: Some(item),
+            ..AttributeValue::default()
+        }).map(from_av).transpose()?)
     }
 }

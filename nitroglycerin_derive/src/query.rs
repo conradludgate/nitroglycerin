@@ -159,17 +159,18 @@ impl<'a> ToTokens for Builder1<'a> {
         tokens.extend(quote_spanned! { ident.span() =>
             impl #impl_generics #builder #ty_generics #where_clause {
                 #[doc = #fn_doc]
-                #vis fn #ident(self, #ident: impl ::std::convert::Into<#ty>) -> #builder_p #ty_generics
+                #vis fn #ident<T>(self, #ident: &T) -> ::std::result::Result<#builder_p #ty_generics, ::nitroglycerin::ser::Error>
                 where
-                    #ty: ::nitroglycerin::convert::IntoAttributeValue,
+                    #ty: ::std::borrow::Borrow<T>,
+                    T: ::nitroglycerin::serde::Serialize + ?::std::marker::Sized,
                     #output #ty_generics2: ::nitroglycerin::TableIndex,
                 {
-                    let partition_key: #ty = #ident.into();
+                    let partition_key: &T = #ident;
                     let Self { client, _phantom } = self;
 
-                    let input = ::nitroglycerin::query::new_input::<#output #ty_generics2, _>(#name, partition_key);
+                    let input = ::nitroglycerin::query::new_input::<#output #ty_generics2, _>(#name, partition_key)?;
 
-                    #builder_p::new(client, input)
+                    ::std::result::Result::Ok(#builder_p::new(client, input))
                 }
             }
         });
@@ -254,7 +255,7 @@ impl<'a> ToTokens for Builder2<'a> {
                         where
                             #D: ::nitroglycerin::dynamodb::DynamoDb,
                             &#DL #D: ::std::marker::Send,
-                            #output #ty_generics2: ::std::convert::TryFrom<::nitroglycerin::Attributes, Error = ::nitroglycerin::AttributeError> + ::std::marker::Send,
+                            #output #ty_generics2: ::nitroglycerin::serde::de::DeserializeOwned + ::std::marker::Send,
                         {
                             let Self { client, input, _phantom } = self;
                             ::nitroglycerin::query::Expr::new(client, input).execute().await

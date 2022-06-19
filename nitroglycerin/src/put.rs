@@ -1,25 +1,29 @@
 use rusoto_dynamodb::{PutItemError, PutItemInput};
+use serde::Serialize;
 
-use crate::{Attributes, DynamoDb, DynamoError, Table};
+use crate::{DynamoDb, DynamoError, ser, Table};
 
 /// Trait that declares a type can be built into a put item request
 pub trait Put<'d, D: 'd + ?Sized>: Table {
     /// The builder type that performs the put item request
     type Builder;
     /// Create the put item builder
-    fn put(self, client: &'d D) -> Self::Builder;
+    ///
+    /// # Errors
+    /// Will error if self cannot be serialized
+    fn put(&self, client: &'d D) -> Result<Self::Builder, ser::Error>;
 }
 
-impl<'d, D: 'd + ?Sized, T: Table + Into<Attributes>> Put<'d, D> for T {
+impl<'d, D: 'd + ?Sized, T: Table + Serialize> Put<'d, D> for T {
     type Builder = Expr<'d, D>;
-    fn put(self, client: &'d D) -> Self::Builder {
+    fn put(&self, client: &'d D) -> Result<Self::Builder, ser::Error> {
         let input = PutItemInput {
             table_name: T::table_name(),
-            item: self.into(),
+            item: ser::to_av_map(&self)?,
             ..PutItemInput::default()
         };
 
-        Expr::new(client, input)
+        Ok(Expr::new(client, input))
     }
 }
 

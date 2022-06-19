@@ -1,17 +1,18 @@
-use nitroglycerin::{dynamodb::DynamoDbClient, Attributes, DynamoDb, Key, Query, Table};
+use nitroglycerin::serde::{Deserialize, Serialize};
+use nitroglycerin::{dynamodb::DynamoDbClient, DynamoDb, Key, Table};
 use rusoto_core::Region;
 
-#[derive(Debug, Attributes, Key, Query)]
-pub struct TimeTable<ID: Clone> {
+#[derive(Debug, Serialize, Deserialize, Key)]
+pub struct TimeTable {
     #[nitro(partition_key)]
-    id: ID,
+    id: String,
 
-    #[nitro(rename = "timestamp")]
+    // #[nitro(rename = "timestamp")]
     #[nitro(sort_key)]
     time: u32,
 }
 
-impl<ID: Clone> Table for TimeTable<ID> {
+impl Table for TimeTable {
     fn table_name() -> String {
         "Time".to_string()
     }
@@ -20,7 +21,7 @@ impl<ID: Clone> Table for TimeTable<ID> {
 #[tokio::main]
 async fn main() {
     let client = DynamoDbClient::new(Region::default());
-    let time = client.get::<TimeTable<String>>().id("foo").time(5u32).execute().await.unwrap();
+    let time = client.get::<TimeTable>().id("foo").unwrap().time(&5u32).unwrap().execute().await.unwrap();
 
     println!("{:?}", time);
 }
