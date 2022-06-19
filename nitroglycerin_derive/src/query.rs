@@ -161,7 +161,8 @@ impl<'a> ToTokens for Builder1<'a> {
                 #[doc = #fn_doc]
                 #vis fn #ident<T>(self, #ident: &T) -> ::std::result::Result<#builder_p #ty_generics, ::nitroglycerin::ser::Error>
                 where
-                    T: ::std::borrow::ToOwned<Owned = #ty> + ::nitroglycerin::serde::Serialize + ?::std::marker::Sized,
+                    #ty: ::std::borrow::Borrow<T>,
+                    T: ::nitroglycerin::serde::Serialize + ?::std::marker::Sized,
                     #output #ty_generics2: ::nitroglycerin::TableIndex,
                 {
                     let partition_key: &T = #ident;

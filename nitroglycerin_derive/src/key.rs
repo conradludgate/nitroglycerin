@@ -185,7 +185,8 @@ impl<'a> ToTokens for Builder1<'a> {
                 #[doc = #fn_doc]
                 #vis fn #ident<T>(self, #ident: &T) -> ::std::result::Result<#builder_p #ty_generics, ::nitroglycerin::ser::Error>
                 where
-                    T: ::std::borrow::ToOwned<Owned = #ty> + ::nitroglycerin::serde::Serialize + ?::std::marker::Sized,
+                    #ty: ::std::borrow::Borrow<T>,
+                    T: ::nitroglycerin::serde::Serialize + ?::std::marker::Sized,
                     #output #ty_generics2: ::nitroglycerin::Table,
                 {
                     let partition_key: &T = #ident;
@@ -285,7 +286,8 @@ impl<'a> ToTokens for Builder2<'a> {
                         #[doc = #fn_doc]
                         #vis fn #ident<T>(self, #ident: &T) -> ::std::result::Result<::nitroglycerin::key::Expr<#DL, #D, #R, #output #ty_generics2>, ::nitroglycerin::ser::Error>
                         where
-                            T: ::std::borrow::ToOwned<Owned = #ty> + ::nitroglycerin::serde::Serialize + ?::std::marker::Sized,
+                            #ty: ::std::borrow::Borrow<T>,
+                            T: ::nitroglycerin::serde::Serialize + ?::std::marker::Sized,
                         {
                             let sort_key: &T = #ident;
                             let Self { client, mut key, _phantom } = self;
